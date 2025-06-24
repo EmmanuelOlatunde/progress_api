@@ -1,0 +1,405 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskMaster Pro</title>
+    <link rel="stylesheet" href="{% static 'css/index.css' %}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Authentication Modal -->
+        <div id="auth-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="auth-title">Welcome to TaskMaster Pro</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <!-- Login Form -->
+                    <form id="login-form" class="auth-form">
+                        <div class="form-group">
+                            <label for="login-email">Email</label>
+                            <input type="email" id="login-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Login</button>
+                        <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Register</a></p>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="register-form" class="auth-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="reg-username">Username</label>
+                            <input type="text" id="reg-username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-email">Email</label>
+                            <input type="email" id="reg-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-first-name">First Name</label>
+                            <input type="text" id="reg-first-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-last-name">Last Name</label>
+                            <input type="text" id="reg-last-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-password">Password</label>
+                            <input type="password" id="reg-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reg-password-confirm">Confirm Password</label>
+                            <input type="password" id="reg-password-confirm" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Register</button>
+                        <p class="auth-switch">Already have an account? <a href="#" id="show-login">Login</a></p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" style="display: none;">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1><i class="fas fa-tasks"></i> TaskMaster Pro</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="user-name">Loading...</span>
+                        <div class="level-badge">
+                            <i class="fas fa-star"></i>
+                            <span id="user-level">1</span>
+                        </div>
+                    </div>
+                    <button id="logout-btn" class="btn btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </header>
+
+            <!-- Sidebar -->
+            <nav class="sidebar">
+                <ul class="nav-menu">
+                    <li><a href="#" class="nav-link active" data-section="overview">
+                        <i class="fas fa-chart-pie"></i> Overview
+                    </a></li>
+                    <li><a href="#" class="nav-link" data-section="tasks">
+                        <i class="fas fa-tasks"></i> Tasks
+                    </a></li>
+                    <li><a href="#" class="nav-link" data-section="categories">
+                        <i class="fas fa-tags"></i> Categories
+                    </a></li>
+                    <li><a href="#" class="nav-link" data-section="achievements">
+                        <i class="fas fa-trophy"></i> Achievements
+                    </a></li>
+                    <li><a href="#" class="nav-link" data-section="weekly-reviews">
+                        <i class="fas fa-calendar-week"></i> Weekly Reviews
+                    </a></li>
+                    <li><a href="#" class="nav-link" data-section="profile">
+                        <i class="fas fa-user"></i> Profile
+                    </a></li>
+                </ul>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Overview Section -->
+                <section id="overview-section" class="content-section active">
+                    <div class="section-header">
+                        <h2>Dashboard Overview</h2>
+                    </div>
+                    
+                    <!-- XP Progress Card -->
+                    <div class="xp-card">
+                        <div class="xp-info">
+                            <h3>Experience Progress</h3>
+                            <div class="xp-details">
+                                <span class="current-xp">0 XP</span>
+                                <span class="level-info">Level <span id="current-level">2000 </span></span>
+                            </div>
+                            <div class="xp-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="xp-progress-fill"></div>
+                                </div>
+                                <span class="progress-text" id="xp-progress-text">1/200000 XP</span>
+                            </div>
+                        </div>
+                        <div class="streak-info">
+                            <div class="streak-item">
+                                <i class="fas fa-fire"></i>
+                                <span>Current Streak</span>
+                                <strong id="current-streak">0</strong>
+                            </div>
+                            <div class="streak-item">
+                                <i class="fas fa-crown"></i>
+                                <span>Best Streak</span>
+                                <strong id="longest-streak">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-list-check"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="total-tasks">0</h3>
+                                <p>Total Tasks</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="completed-tasks">0</h3>
+                                <p>Completed</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="pending-tasks">0</h3>
+                                <p>Pending</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-trophy"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="unlocked-achievements">0</h3>
+                                <p>Achievements</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Tasks -->
+                    <div class="recent-tasks">
+                        <h3>Recent Tasks</h3>
+                        <div id="recent-tasks-list" class="task-list">
+                            <!-- Tasks will be loaded here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tasks Section -->
+                <section id="tasks-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Task Management</h2>
+                        <button id="add-task-btn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Task
+                        </button>
+                    </div>
+
+                    <!-- Task Filters -->
+                    <div class="task-filters">
+                        <select id="category-filter">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select id="status-filter">
+                            <option value="">All Status</option>
+                            <option value="true">Completed</option>
+                            <option value="false">Pending</option>
+                        </select>
+                        <select id="priority-filter">
+                            <option value="">All Priorities</option>
+                             <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+
+                    <!-- Task List -->
+                    <div id="tasks-list" class="task-list">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                </section>
+
+                <!-- Categories Section -->
+                <section id="categories-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Categories</h2>
+                        <button id="add-category-btn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Category
+                        </button>
+                    </div>
+                    <div id="categories-list" class="categories-grid">
+                        <!-- Categories will be loaded here -->
+                    </div>
+                </section>
+
+            <!-- Achievements Section -->
+            <section id="achievements-section" class="content-section">
+                <div class="section-header">
+                    <h2>Achievements</h2>
+                </div>
+                
+                <!-- Unlocked Achievements -->
+                <div class="achievements-subsection">
+                    <h3>Unlocked Achievements</h3>
+                    <div id="unlocked-achievements-list" class="achievements-grid">
+                        <!-- Unlocked achievements will be loaded here -->
+                    </div>
+                </div>
+                
+                <!-- All Achievements -->
+                <div class="achievements-subsection">
+                    <h3>All Achievements</h3>
+                    <div id="achievements-list" class="achievements-grid">
+                        <!-- All achievements will be loaded here -->
+                    </div>
+                </div>
+            </section>
+                <!-- Weekly Reviews Section -->
+                <section id="weekly-reviews-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Weekly Reviews</h2>
+                    </div>
+                    <div id="weekly-reviews-list">
+                        <!-- Weekly reviews will be loaded here -->
+                    </div>
+                </section>
+
+                <!-- Profile Section -->
+                <section id="profile-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Profile Settings</h2>
+                    </div>
+                    <div class="profile-content">
+                        <form id="profile-form" class="profile-form">
+                            <div class="form-group">
+                                <label for="profile-first-name">First Name</label>
+                                <input type="text" id="profile-first-name">
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-last-name">Last Name</label>
+                                <input type="text" id="profile-last-name">
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-bio">Bio</label>
+                                <textarea id="profile-bio" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-location">Location</label>
+                                <input type="text" id="profile-location">
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-website">Website</label>
+                                <input type="url" id="profile-website">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Profile</button>
+                        </form>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Task Modal -->
+        <div id="task-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="task-modal-title">Add New Task</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="task-form">
+                        <div class="form-group">
+                            <label for="task-title">Title</label>
+                            <input type="text" id="task-title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-description">Description</label>
+                            <textarea id="task-description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-category">Category</label>
+                            <select id="task-category" required>
+                                <option value="">Select Category</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-difficulty">Difficulty</label>
+                            <select id="task-difficulty" required>
+                                <option value="easy">Easy</option>
+                                <option value="medium">Medium</option>
+                                <option value="hard">Hard</option>
+                                <option value="expert">Expert</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-priority">Priority</label>
+                            <select id="task-priority" required>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-due-date">Due Date</label>
+                            <input type="datetime-local" id="task-due-date">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Task</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Modal -->
+        <div id="category-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="category-modal-title">Add New Category</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="category-form">
+                        <div class="form-group">
+                            <label for="category-name">Name</label>
+                            <input type="text" id="category-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="category-description">Description</label>
+                            <textarea id="category-description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="category-color">Color</label>
+                            <input type="color" id="category-color" value="#007bff">
+                        </div>
+                        <div class="form-group">
+                            <label for="category-multiplier">XP Multiplier</label>
+                            <input type="number" id="category-multiplier" min="0.1" max="5" step="0.1" value="1.0">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Category</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="{% static 'js/index.js' %}"></script>
+</body>
+</html>

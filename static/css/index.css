@@ -1,0 +1,1449 @@
+/*
+ * =============================================================
+ * CSS Refactoring for Enhanced UI/UX
+ * =============================================================
+ *
+ * This stylesheet has been refactored to improve maintainability,
+ * consistency, responsiveness, and overall user experience.
+ *
+ * Key changes include:
+ * - Introduction of CSS Custom Properties (Variables) for theming.
+ * - Improved semantic grouping of styles.
+ * - Refined typography with a focus on readability.
+ * - Enhanced responsiveness for various screen sizes.
+ * - Subtle animations and transitions for a more dynamic feel.
+ * - Basic accessibility considerations.
+ *
+ */
+
+/* =============================================================
+ * 1. Custom Properties (Variables)
+ * =============================================================
+ * Centralize commonly used values for colors, fonts, spacing,
+ * and shadows to ensure consistency and easy theme management.
+ */
+:root {
+    /* Colors */
+    --primary-color: #667eea; /* A vibrant purple-blue for primary actions and highlights */
+    --secondary-color: #764ba2; /* A deeper purple for gradients and secondary elements */
+    --accent-color: #ffd700; /* Gold for badges and important highlights */
+    --text-dark: #2d3748; /* Dark text for headings and strong content */
+    --text-medium: #4a5568; /* Medium-dark text for general content */
+    --text-light: #718096; /* Lighter text for descriptions and meta information */
+    --background-light: rgba(255, 255, 255, 0.95); /* Light, semi-transparent background for cards/modals */
+    --background-gradient: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    --border-color: rgba(255, 255, 255, 0.2); /* Light border for separation */
+    --light-grey: #e2e8f0; /* For subtle backgrounds and borders */
+    --medium-grey: #cbd5e0; /* For hover states on secondary buttons */
+    --dark-overlay: rgba(0, 0, 0, 0.5); /* For modal backdrops */
+
+    /* Success, Warning, Danger */
+    --success-color: #48bb78;
+    --success-background: #c6f6d5; /* Light green for success backgrounds */
+    --success-text: #2f855a;
+
+    --warning-color: #ed8936;
+    --warning-background: #feebc8; /* Light orange for warning backgrounds */
+    --warning-text: #d69e2e;
+
+    --danger-color: #f56565;
+    --danger-background: #fed7d7; /* Light red for danger backgrounds */
+    --danger-text: #c53030;
+
+    /* Spacing */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+
+    /* Border Radii */
+    --border-radius-sm: 4px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --border-radius-xl: 16px;
+    --border-radius-circle: 50%;
+
+    /* Font Sizes */
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-md: 1.125rem;
+    --font-size-lg: 1.25rem;
+    --font-size-xl: 1.5rem;
+    --font-size-xxl: 2rem;
+
+    /* Shadows */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 5px 15px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3); /* For modals */
+    --shadow-primary-hover: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+/* =============================================================
+ * 2. Reset and Base Styles
+ * =============================================================
+ * Fundamental styles applied globally to ensure consistency
+ * across different browsers and a clean slate for custom styles.
+ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-medium);
+    background: var(--background-gradient);
+    min-height: 100vh;
+    /* Smooth scrolling for anchor links */
+    scroll-behavior: smooth;
+}
+
+/* App Container (Root element for the application layout) */
+#app {
+    min-height: 100vh;
+    position: relative;
+    display: flex; /* Use flexbox for overall layout */
+    flex-direction: column;
+}
+
+/* =============================================================
+ * 3. Layout Components
+ * =============================================================
+ * Styles for the main structural components of the application.
+ */
+
+/* Header */
+.header {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    padding: var(--spacing-md) var(--spacing-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    position: fixed; /* Keep header at the top */
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    box-shadow: var(--shadow-sm);
+}
+
+.header-left h1 {
+    color: var(--text-medium);
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+}
+
+.header-left h1 i {
+    color: var(--primary-color);
+    margin-right: var(--spacing-sm);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-medium); /* Ensure text color is consistent */
+}
+
+.level-badge {
+    background: linear-gradient(45deg, var(--accent-color), #ffed4a); /* Use accent color */
+    color: var(--text-dark); /* Ensure good contrast for badge text */
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 20px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 80px; /* Adjust based on header height */
+    left: 0;
+    width: 250px;
+    height: calc(100vh - 80px);
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--border-color);
+    padding: var(--spacing-md) 0;
+    overflow-y: auto;
+    z-index: 900; /* Below header, above main content */
+    transition: transform 0.3s ease-in-out; /* Smooth transition for mobile toggle */
+}
+
+.nav-menu {
+    list-style: none;
+}
+
+.nav-menu li {
+    margin-bottom: var(--spacing-sm);
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem var(--spacing-lg); /* Use explicit values for specific padding */
+    color: var(--text-medium);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+.nav-link:hover {
+    background: rgba(var(--primary-color-rgb), 0.1); /* Using rgba with variables for transparency */
+    color: var(--primary-color);
+    border-left-color: var(--primary-color);
+}
+
+.nav-link.active {
+    background: rgba(var(--primary-color-rgb), 0.15);
+    color: var(--primary-color);
+    border-left-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.nav-link i {
+    margin-right: 0.75rem;
+    width: 16px; /* Fixed width for icons to align text */
+    text-align: center;
+}
+
+/* Main Content Area */
+.main-content {
+    margin-left: 250px; /* Offset for sidebar */
+    margin-top: 80px; /* Offset for header */
+    padding: var(--spacing-xl);
+    min-height: calc(100vh - 80px);
+    flex-grow: 1; /* Allows main content to take available space */
+}
+
+.content-section {
+    display: none;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.content-section.active {
+    display: block;
+}
+
+/* Section Header (Used across various sections) */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xl);
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: var(--spacing-md); /* Gap between title and button */
+}
+
+.section-header h2 {
+    color: var(--text-dark);
+    font-size: var(--font-size-xxl);
+    font-weight: 700;
+    line-height: 1.2; /* Better line height for large headings */
+}
+
+/* =============================================================
+ * 4. UI Elements (Buttons, Cards, Forms, Modals)
+ * =============================================================
+ * Reusable styles for common interactive and display elements.
+ */
+
+/* Buttons */
+.btn {
+    padding: 0.75rem var(--spacing-lg);
+    border: none;
+    border-radius: var(--border-radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    text-decoration: none; /* For button-like links */
+    justify-content: center; /* Center content horizontally */
+}
+
+.btn i {
+    font-size: var(--font-size-base); /* Ensure consistent icon size */
+}
+
+.btn:focus {
+    outline: 2px solid var(--primary-color); /* Accessibility: outline on focus */
+    outline-offset: 2px;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-primary-hover);
+}
+
+.btn-secondary {
+    background: var(--light-grey);
+    color: var(--text-medium);
+}
+
+.btn-secondary:hover {
+    background: var(--medium-grey);
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    filter: brightness(1.1); /* Subtle hover effect */
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    filter: brightness(1.1);
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    filter: brightness(1.1);
+}
+
+/* XP Card (Specific to Overview section) */
+.xp-card {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-lg);
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: var(--spacing-lg); /* Gap between sections if wrapped */
+}
+
+.xp-info h3 {
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-md);
+}
+
+.xp-details {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.current-xp {
+    font-size: var(--font-size-xxl);
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.level-info {
+    background: linear-gradient(45deg, var(--accent-color), #ffed4a);
+    color: var(--text-dark);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: 25px;
+    font-weight: 600;
+}
+
+.xp-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.progress-bar {
+    width: 300px; /* Fixed width for desktop, adjust for mobile */
+    height: 12px;
+    background: var(--light-grey);
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: width 0.3s ease;
+    border-radius: var(--border-radius-sm);
+}
+
+.progress-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-light);
+    white-space: nowrap; /* Prevent text wrapping */
+}
+
+.streak-info {
+    display: flex;
+    gap: var(--spacing-xl);
+    flex-wrap: wrap; /* Allow wrapping */
+}
+
+.streak-item {
+    text-align: center;
+    min-width: 100px; /* Ensure items don't get too small */
+}
+
+.streak-item i {
+    font-size: var(--font-size-xxl);
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: var(--spacing-sm);
+}
+
+.streak-item span {
+    display: block;
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.streak-item strong {
+    display: block;
+    font-size: var(--font-size-xl);
+    color: var(--text-dark);
+    font-weight: 700;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    box-shadow: var(--shadow-md);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg); /* More pronounced shadow on hover */
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--border-radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xl);
+    color: white;
+    flex-shrink: 0; /* Prevent icon from shrinking */
+}
+
+/* Specific icon background colors (can be moved to variables if many) */
+.stat-card:nth-child(1) .stat-icon {
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+}
+
+.stat-card:nth-child(2) .stat-icon {
+    background: linear-gradient(45deg, var(--success-color), #38a169);
+}
+
+.stat-card:nth-child(3) .stat-icon {
+    background: linear-gradient(45deg, var(--warning-color), #dd6b20);
+}
+
+.stat-card:nth-child(4) .stat-icon {
+    background: linear-gradient(45deg, var(--accent-color), #ffed4a);
+}
+
+.stat-info h3 {
+    font-size: var(--font-size-xxl);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-xs);
+}
+
+.stat-info p {
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+}
+
+/* Task List */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.task-item {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+    flex-wrap: wrap; /* Allow content to wrap */
+    gap: var(--spacing-md); /* Space between info and actions */
+}
+
+.task-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.task-item.completed {
+    opacity: 0.7;
+    border-left: 5px solid var(--success-color); /* Visual cue for completed tasks */
+}
+
+.task-info {
+    flex: 1;
+    min-width: 200px; /* Ensure info doesn't shrink too much */
+}
+
+.task-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-sm);
+}
+
+.task-title.completed {
+    text-decoration: line-through;
+    color: var(--text-light);
+}
+
+.task-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap; /* Allow meta items to wrap */
+}
+
+.task-category {
+    padding: var(--spacing-xs) 0.75rem;
+    border-radius: 20px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: white; /* Category color set inline or dynamically */
+}
+
+.task-priority {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.task-priority.high {
+    background: var(--danger-background);
+    color: var(--danger-text);
+}
+
+.task-priority.medium {
+    background: var(--warning-background);
+    color: var(--warning-text);
+}
+
+.task-priority.low {
+    background: var(--success-background);
+    color: var(--success-text);
+}
+
+.task-description {
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+}
+
+.task-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-shrink: 0; /* Prevent actions from shrinking */
+}
+
+.task-actions .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-xs);
+}
+
+/* Task Filters */
+.task-filters {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+    flex-wrap: wrap; /* Allow filters to wrap on smaller screens */
+}
+
+.task-filters select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 2px solid var(--light-grey);
+    border-radius: var(--border-radius-md);
+    background: white;
+    font-size: var(--font-size-sm);
+    color: var(--text-medium);
+    appearance: none; /* Remove default select arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23718096%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13%205.4L146.2%20224.7%2018.7%2074.9a17.6%2017.6%200%200%200-25.3%2023.2l130.8%20130.8c.4.4.8.7%201.2%201.1.2.2.4.4.6.6.7.6%201.4%201.2%202.2%201.7%2016.5%2016.5%2043.4%2016.5%2059.9%200l130.8-130.8c.4-.4.8-.7%201.2-1.1.2-.2.4-.4.6-.6.7-.6%201.4-1.2%202.2-1.7a17.6%2017.6%200%200%200-13-30.8z%22%2F%3E%3C%2Fsvg%3E'); /* Custom arrow */
+    background-repeat: no-repeat;
+    background-position: right var(--spacing-md) center;
+    background-size: 10px;
+    padding-right: 2.5rem; /* Make space for the custom arrow */
+}
+
+/* Categories Grid */
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.category-card {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column; /* Stack content vertically */
+}
+
+.category-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.category-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.category-color {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--border-radius-circle);
+    border: 2px solid var(--light-grey);
+    flex-shrink: 0;
+}
+
+.category-description {
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-md);
+    flex-grow: 1; /* Allow description to take space */
+}
+
+.category-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto; /* Push to bottom of card */
+}
+
+.category-task-count {
+    color: var(--text-medium);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+}
+
+.category-xp-multiplier {
+    background: linear-gradient(45deg, var(--accent-color), #ffed4a);
+    color: var(--text-dark);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 12px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+/* Achievements Grid */
+.achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Adjusted min-width slightly */
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) 0;
+}
+
+.achievements-subsection h3 {
+    color: var(--text-dark);
+    font-size: var(--font-size-xl);
+    margin-top: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
+}
+
+.achievement-card {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    border: 2px solid var(--light-grey);
+    background: #fff;
+    transition: all 0.3s ease;
+    position: relative; /* For shine effect */
+    overflow: hidden;
+}
+
+.achievement-card.unlocked {
+    border-color: var(--success-color);
+    background: var(--success-background);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+}
+
+.achievement-card.locked {
+    border-color: #ccc;
+    background: #f9f9f9;
+    opacity: 0.8;
+}
+
+.achievement-icon {
+    margin-right: var(--spacing-md);
+    font-size: var(--font-size-xxl);
+    flex-shrink: 0;
+    color: var(--primary-color); /* Default icon color */
+}
+
+.achievement-card.unlocked .achievement-icon {
+    color: var(--success-color); /* Unlocked icon color */
+    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Add a bounce effect */
+}
+
+/* Shine effect for unlocked achievements (optional, for flair) */
+.achievement-card.unlocked::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    animation: shine 2s infinite ease-out 0.5s; /* Delay for effect */
+    pointer-events: none; /* Allow clicks through */
+    opacity: 0.5;
+}
+
+
+.achievement-info {
+    flex: 1;
+}
+
+.achievement-name {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-dark);
+    font-weight: 600;
+    font-size: var(--font-size-md);
+}
+
+.achievement-description {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
+.achievement-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    font-size: var(--font-size-xs);
+}
+
+.achievement-xp,
+.achievement-type {
+    color: white;
+    padding: 0.2rem var(--spacing-sm);
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.achievement-xp {
+    background: #2196f3; /* Blue for XP, maybe a specific XP color variable */
+}
+
+.achievement-type {
+    background: #ff9800; /* Orange for type */
+}
+
+.achievement-date {
+    color: var(--success-color);
+    font-weight: bold;
+    font-size: var(--font-size-xs);
+}
+
+.achievement-progress-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-light);
+    margin-top: var(--spacing-sm);
+}
+
+/* Progress bar for achievements (reused from XP card but can be customized) */
+.achievement-card .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--light-grey);
+    border-radius: 2px;
+    margin-top: var(--spacing-sm);
+    overflow: hidden;
+}
+
+.achievement-card .progress-fill {
+    height: 100%;
+    background: #2196f3; /* Match achievement XP color */
+    transition: width 0.3s ease;
+    border-radius: 2px;
+}
+
+
+/* Forms (General styles for input fields) */
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+    color: var(--text-medium);
+    font-size: var(--font-size-sm); /* Slightly smaller for labels */
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--light-grey);
+    border-radius: var(--border-radius-md);
+    font-size: var(--font-size-base);
+    color: var(--text-dark); /* Ensure text is readable */
+    background-color: white; /* Explicit background */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: var(--text-light); /* Placeholder styling */
+    opacity: 0.8;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* Modals */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--dark-overlay);
+    backdrop-filter: blur(5px);
+    overflow-y: auto; /* Allow scrolling for tall modals */
+    padding: var(--spacing-md); /* Add padding for small screens */
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: modalFadeIn 0.3s ease-out forwards; /* forwards keeps final state */
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--border-radius-xl);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh; /* Control max height, combined with overflow-y */
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+    animation: modalSlideIn 0.3s ease-out forwards;
+    position: relative; /* For the close button positioning */
+}
+
+.modal-header {
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--light-grey);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky; /* Keep header visible on scroll */
+    top: 0;
+    background: white;
+    z-index: 1; /* Above modal body content */
+    border-top-left-radius: var(--border-radius-xl); /* Match content radius */
+    border-top-right-radius: var(--border-radius-xl);
+}
+
+.modal-header h2,
+.modal-header h3 {
+    color: var(--text-dark);
+    margin: 0;
+    font-size: var(--font-size-xl);
+}
+
+.close {
+    font-size: var(--font-size-xxl); /* Larger for easier clicking */
+    cursor: pointer;
+    color: var(--text-light);
+    transition: color 0.3s ease, transform 0.3s ease;
+    background: none; /* Remove default button styling */
+    border: none;
+    padding: 0; /* Remove default padding */
+}
+
+.close:hover {
+    color: var(--text-dark);
+    transform: rotate(90deg); /* Little spin on close */
+}
+
+.modal-body {
+    padding: var(--spacing-lg);
+}
+
+/* Auth Forms (Login/Register) */
+.auth-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.auth-switch {
+    text-align: center;
+    margin-top: var(--spacing-md);
+    color: var(--text-light);
+    font-size: var(--font-size-sm);
+}
+
+.auth-switch a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-switch a:hover {
+    text-decoration: underline;
+}
+
+/* Profile Form */
+.profile-form {
+    max-width: 600px;
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-lg);
+    margin: 0 auto; /* Center the form */
+}
+
+/* Weekly Reviews */
+.weekly-review-card {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    transition: transform 0.3s ease;
+}
+
+.weekly-review-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.review-period {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.performance-grade {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: 20px;
+    font-weight: 600;
+    color: white;
+    font-size: var(--font-size-sm);
+    min-width: 80px; /* Ensure consistent size */
+    text-align: center;
+}
+
+.performance-grade.A { background: var(--success-color); }
+.performance-grade.B { background: #38a169; } /* Slightly different green */
+.performance-grade.C { background: var(--warning-color); }
+.performance-grade.D { background: var(--danger-color); }
+
+.review-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Adjusted min-width for better fit */
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.review-stat {
+    text-align: center;
+    background: var(--light-grey); /* Subtle background for each stat */
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-md);
+}
+
+.review-stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-xs);
+}
+
+.review-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Loading Spinner */
+.loading {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 3000;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading.show {
+    display: flex;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--light-grey);
+    border-top: 4px solid var(--primary-color);
+    border-radius: var(--border-radius-circle);
+    animation: spin 1s linear infinite;
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 100px; /* Below header */
+    right: var(--spacing-xl);
+    z-index: 2500;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.toast {
+    background: white;
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    animation: toastSlideIn 0.3s ease-out forwards, fadeOut 0.5s ease-out 3s forwards; /* Slide in, then fade out */
+    min-width: 300px;
+    max-width: 400px; /* Prevent toasts from getting too wide */
+    word-break: break-word; /* Ensure long messages wrap */
+}
+
+.toast i {
+    font-size: var(--font-size-lg);
+    flex-shrink: 0; /* Prevent icon from shrinking */
+}
+
+.toast.success { border-left: 4px solid var(--success-color); color: var(--success-text); }
+.toast.error { border-left: 4px solid var(--danger-color); color: var(--danger-text); }
+.toast.warning { border-left: 4px solid var(--warning-color); color: var(--warning-text); }
+.toast.info { border-left: 4px solid var(--primary-color); color: #4c51bf; } /* Specific blue for info */
+
+/* Recent Tasks Section (Reuses task-list styling) */
+.recent-tasks {
+    background: var(--background-light);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.recent-tasks h3 {
+    color: var(--text-dark);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-xl);
+}
+
+/* =============================================================
+ * 5. Animations
+ * =============================================================
+ * Keyframe animations for dynamic UI elements.
+ */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(var(--spacing-md)); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalSlideIn {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes toastSlideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes shine {
+    0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+    100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+}
+
+@keyframes bounceIn {
+    0%, 20%, 40%, 60%, 80%, 100% {
+        transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+    0% { opacity: 0; transform: scale3d(0.3, 0.3, 0.3); }
+    20% { transform: scale3d(1.1, 1.1, 1.1); }
+    40% { transform: scale3d(0.9, 0.9, 0.9); }
+    60% { opacity: 1; transform: scale3d(1.03, 1.03, 1.03); }
+    80% { transform: scale3d(0.97, 0.97, 0.97); }
+    100% { opacity: 1; transform: scale3d(1, 1, 1); }
+}
+
+/* =============================================================
+ * 6. Responsive Design
+ * =============================================================
+ * Media queries to ensure the layout adapts well to different
+ * screen sizes, prioritizing mobile-first approach where appropriate.
+ */
+@media (max-width: 768px) {
+    /* General adjustments */
+    body {
+        font-size: var(--font-size-sm); /* Slightly smaller base font on mobile */
+    }
+
+    .header {
+        padding: var(--spacing-md);
+        justify-content: center; /* Center header content or use menu icon */
+        flex-wrap: wrap; /* Allow wrapping of header content */
+        height: auto; /* Allow header to expand vertically */
+        text-align: center;
+    }
+
+    .header-left h1 {
+        font-size: var(--font-size-lg);
+        width: 100%; /* Take full width */
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: center;
+        gap: var(--spacing-md);
+    }
+
+    /* Sidebar toggle for mobile */
+    .sidebar {
+        transform: translateX(-100%);
+        width: 200px; /* Slightly smaller sidebar on mobile */
+        height: calc(100vh - 80px); /* Account for header height */
+        z-index: 1500; /* Higher z-index when active to overlay content */
+    }
+
+    .sidebar.show {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        margin-left: 0; /* No offset when sidebar is hidden */
+        padding: var(--spacing-md);
+    }
+    
+    .section-header {
+        flex-direction: column; /* Stack title and button */
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .section-header h2 {
+        font-size: var(--font-size-xl);
+    }
+
+    .xp-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-lg);
+        padding: var(--spacing-lg); /* Reduce padding on mobile */
+    }
+
+    .xp-progress {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .progress-bar {
+        width: 100%; /* Full width progress bar */
+    }
+
+    .streak-info {
+        flex-direction: column; /* Stack streak items */
+        width: 100%;
+        gap: var(--spacing-md);
+        margin-top: var(--spacing-lg);
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr; /* Single column layout for stats */
+        gap: var(--spacing-md);
+    }
+
+    .stat-card {
+        flex-direction: row; /* Keep content in a row */
+        align-items: center;
+        padding: var(--spacing-md);
+    }
+
+    .task-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+
+    .task-meta {
+        flex-wrap: wrap;
+        width: 100%; /* Ensure meta items take full width to wrap */
+        justify-content: flex-start;
+    }
+
+    .task-actions {
+        width: 100%;
+        justify-content: flex-start; /* Align buttons to start */
+    }
+    
+    .task-filters {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        align-items: stretch; /* Stretch selects to full width */
+    }
+
+    .task-filters select {
+        width: 100%;
+    }
+
+    .categories-grid {
+        grid-template-columns: 1fr; /* Single column for categories */
+    }
+
+    .achievement-card {
+        flex-direction: column; /* Stack content vertically */
+        align-items: flex-start;
+        padding: var(--spacing-md);
+    }
+
+    .achievement-icon {
+        margin-right: 0;
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .achievement-meta {
+        margin-top: var(--spacing-sm);
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: var(--spacing-md) auto;
+        border-radius: var(--border-radius-lg); /* Slightly smaller radius for modals on mobile */
+    }
+
+    .modal-header h2,
+    .modal-header h3 {
+        font-size: var(--font-size-lg);
+    }
+
+    .toast-container {
+        top: 80px; /* Adjust for smaller header */
+        right: var(--spacing-md);
+        left: var(--spacing-md); /* Allow toasts to stretch across */
+        width: auto;
+    }
+
+    .toast {
+        min-width: unset;
+        max-width: unset;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Further adjustments for very small screens */
+    .header-right {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .user-info {
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .btn {
+        padding: 0.6rem var(--spacing-md);
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* =============================================================
+ * 7. Scrollbar Styling
+ * =============================================================
+ * Custom scrollbar appearance for improved aesthetics.
+ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px; /* For horizontal scrollbars */
+}
+
+::-webkit-scrollbar-track {
+    background: var(--light-grey);
+    border-radius: var(--border-radius-md);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: var(--border-radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* =============================================================
+ * 8. Utility Classes
+ * =============================================================
+ * Reusable classes for common styling needs.
+ */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; } /* Added for completeness */
+
+.mb-1 { margin-bottom: var(--spacing-sm); }
+.mb-2 { margin-bottom: var(--spacing-md); }
+.mb-3 { margin-bottom: var(--spacing-lg); }
+.mb-4 { margin-bottom: var(--spacing-xl); } /* Added for more granular control */
+
+.mt-1 { margin-top: var(--spacing-sm); }
+.mt-2 { margin-top: var(--spacing-md); }
+.mt-3 { margin-top: var(--spacing-lg); }
+.mt-4 { margin-top: var(--spacing-xl); }
+
+.py-1 { padding-top: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
+.px-1 { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
+.p-1 { padding: var(--spacing-sm); }
+
+.hidden { display: none !important; }
+.visible { display: block !important; }
+.flex { display: flex; } /* Added for quick flexbox usage */
+.align-center { align-items: center; }
+.justify-center { justify-content: center; }
+
+/*
+ * Note on RGBA for variables:
+ * You can't directly use CSS variables inside rgba() unless the variable itself
+ * defines the red, green, blue values. A common workaround is to define
+ * RGB values as separate variables or use a preprocessor.
+ * For this refactor, I've added a placeholder `primary-color-rgb`
+ * assuming you might add this (e.g., `--primary-color-rgb: 102, 126, 234;`)
+ * or convert your hex codes to RGB during development.
+ * For now, I've kept the original rgba() with hardcoded values where it was.
+ */
+/* Example for defining RGB values for use in rgba(): */
+/* :root { --primary-color-rgb: 102, 126, 234; } */
