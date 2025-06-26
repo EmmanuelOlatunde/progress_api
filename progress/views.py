@@ -660,9 +660,6 @@ class UserProgressProfileViewSet(viewsets.ReadOnlyModelViewSet):
     
 
 
-# gamification/views.py - API Views for Leaderboards, Missions, and Notifications
-
-
 # ============ LEADERBOARD VIEWS ============
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -785,7 +782,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response({'message': 'Rankings updated successfully'})
 
-class FriendshipViewSet(viewsets.ModelViewSet):
+class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
     """Friendship management"""
     permission_classes = [IsAuthenticated]
     serializer_class = UserFriendshipSerializer
