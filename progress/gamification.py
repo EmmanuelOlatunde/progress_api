@@ -686,6 +686,7 @@ class LeaderboardService:
                 'is_current_user': entry.user_id == user_id
             }
             for entry in entries
+            
         ]
         
         return {'user_rank': user_rank, 'context': context}
