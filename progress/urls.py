@@ -32,8 +32,7 @@ router.register(r'notification-settings', NotificationSettingsViewSet, basename=
 router.register(r'game-stats', GameStatsViewSet, basename='game-stats')
 
 urlpatterns = [
-    # API endpoints
-    path('api/', include(router.urls)),
+    
     
     # Direct paths
     path('', include(router.urls)),
