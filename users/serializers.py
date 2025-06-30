@@ -200,6 +200,9 @@ class PasswordChangeSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+    
+    class Meta:
+        fields = ['old_password', 'new_password', 'new_password_confirm']
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     """Serializer for password reset request"""
@@ -210,6 +213,9 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         if not CustomUser.objects.filter(email=value).exists():
             raise serializers.ValidationError('No user found with this email address.')
         return value
+    
+    class Meta:
+        fields = ['email']
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """Serializer for password reset confirmation"""
@@ -222,6 +228,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError("Passwords don't match.")
         return attrs
+    class Meta:
+        fields = ['token', 'new_password', 'new_password_confirm']
 
 class UserActivitySerializer(serializers.ModelSerializer):
     """Serializer for user activity tracking"""

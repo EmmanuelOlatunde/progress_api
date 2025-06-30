@@ -2,26 +2,20 @@ from rest_framework import status, generics, permissions, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView #TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView 
 from rest_framework_simplejwt.tokens import RefreshToken
-#from django.contrib.auth import authenticate, login, logout
-#from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-#from django.db import transaction
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-#import uuid
-
 from .models import CustomUser, UserActivity, PasswordResetToken
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserSerializer,
     PublicUserSerializer, UserUpdateSerializer, PasswordChangeSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
-    UserActivitySerializer, UserStatsSerializer
-)
+    UserActivitySerializer, UserStatsSerializer)
 
 class UserRegistrationView(generics.CreateAPIView):
     """
@@ -208,11 +202,12 @@ class PublicProfileView(generics.RetrieveAPIView):
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
 
-class PasswordChangeView(APIView):
+class PasswordChangeView(generics.GenericAPIView):
     """
     Password change endpoint
     POST /api/auth/password/change/
     """
+    serializer_class = PasswordChangeSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
@@ -240,11 +235,12 @@ class PasswordChangeView(APIView):
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
 
-class PasswordResetRequestView(APIView):
+class PasswordResetRequestView(generics.GenericAPIView):
     """
     Password reset request endpoint
     POST /api/auth/password/reset/
     """
+    serializer_class = PasswordResetRequestSerializer
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
@@ -269,7 +265,7 @@ class PasswordResetRequestView(APIView):
     
     def send_reset_email(self, user, token):
         """Send password reset email"""
-        reset_url = f"{settings.FRONTEND_URL}/password-reset/{token}"
+        reset_url = f"http://127.0.0.1:8000/api/auth/password/reset/confirm/{token}/"
         subject = 'Password Reset Request'
         message = f"""
         Hi {user.username},
@@ -284,7 +280,7 @@ class PasswordResetRequestView(APIView):
         Best regards,
         Your Progress Team
         """
-        
+        print(f"[DEBUG] Password reset URL: {reset_url}")
         send_mail(
             subject,
             message,
@@ -302,11 +298,12 @@ class PasswordResetRequestView(APIView):
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
 
-class PasswordResetConfirmView(APIView):
+class PasswordResetConfirmView(generics.GenericAPIView):
     """
     Password reset confirmation endpoint
     POST /api/auth/password/reset/confirm/
     """
+    serializer_class = PasswordResetConfirmSerializer
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
