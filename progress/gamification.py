@@ -284,7 +284,11 @@ class GamificationEngine:
             self.profile.longest_streak = 0
             self.profile.last_activity_date = None
             self.profile.save()
-            return
+            return {
+                'current_streak': 0,
+                'longest_streak': 0,
+                'last_activity': None
+            }
         
         # Get unique completion dates
         completion_dates = list(set(

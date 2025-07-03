@@ -19,15 +19,13 @@ from .models import (
     Task, Category, XPLog, ProgressProfile, Achievement,
     LeaderboardType, LeaderboardEntry, UserFriendship,
     MissionTemplate, UserMission, WeeklyReview, UserAchievement, 
-    Notification, NotificationType, UserNotificationSettings
-)
+    Notification, NotificationType, UserNotificationSettings)
 from .serializers import (
     LeaderboardTypeSerializer, LeaderboardEntrySerializer, UserFriendshipSerializer,
     MissionTemplateSerializer, UserMissionSerializer,
     NotificationSerializer, NotificationTypeSerializer, UserNotificationSettingsSerializer,
     TaskSerializer, CategorySerializer, XPLogSerializer, 
-    ProgressProfileSerializer, AchievementSerializer, WeeklyReviewSerializer
-)
+    ProgressProfileSerializer, AchievementSerializer, WeeklyReviewSerializer)
 
 
 
@@ -50,9 +48,17 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_class = TaskFilter
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Tasks found.")
-        return Task.objects.filter(user=self.request.user).order_by('-created_at')
+        """Get tasks for the current user"""
+        # Handle schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Task.objects.none()
+        
+        # Your existing logic here
+        queryset = Task.objects.filter(user=self.request.user)
+        if not queryset.exists():
+            # Instead of raising NotFound, return empty queryset
+            return Task.objects.none()
+        return queryset
 
     @action(detail=True, methods=['patch'])
     def complete(self, request, pk=None):
@@ -375,7 +381,12 @@ class StatsViewSet(viewsets.ViewSet):
         old_longest = engine.profile.longest_streak
         
         result = engine.recalculate_streak()
-        
+        if result is None:
+            return Response({
+                'message': 'Streak recalculation failed unexpectedly.',
+                'reason': 'GamificationEngine.recalculate_streak() returned None'
+            }, status=500)
+
         return Response({
             'message': 'Streak recalculated successfully',
             'old_values': {
@@ -430,11 +441,17 @@ class WeeklyReviewViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Weekly Review found.")
-        """Filter reviews to only show the authenticated user's reviews"""
-        return WeeklyReview.objects.filter(user=self.request.user)
-    
+            """Get weekly reviews for the current user"""
+            # Handle schema generation
+            if getattr(self, 'swagger_fake_view', False):
+                return WeeklyReview.objects.none()
+            
+            # Your existing logic here
+            queryset = WeeklyReview.objects.filter(user=self.request.user)
+            if not queryset.exists():
+                # Instead of raising NotFound, return empty queryset
+                return WeeklyReview.objects.none()
+            return queryset
     def perform_create(self, serializer):
         """Automatically set the user when creating a review"""
         serializer.save(user=self.request.user)
@@ -672,6 +689,22 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     serializer_class = LeaderboardEntrySerializer
+    queryset = LeaderboardEntry.objects.all()
+    
+    def get_queryset(self):
+        """Override get_queryset to handle schema generation gracefully"""
+        # Check if this is a schema generation request
+        if getattr(self, 'swagger_fake_view', False):
+            return LeaderboardEntry.objects.none()
+        
+        # Default queryset for list/retrieve actions
+        return LeaderboardEntry.objects.select_related('user', 'leaderboard_type').order_by('-score')
+    
+    def get_serializer_class(self):
+        """Return appropriate serializer based on action"""
+        if self.action == 'types':
+            return LeaderboardTypeSerializer
+        return LeaderboardEntrySerializer
     
     @action(detail=False, methods=['get'])
     def types(self, request):
@@ -693,7 +726,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         elif period == 'monthly':
             start_date = end_date - timedelta(days=30)
         else:
-            start_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+            start_date = timezone.make_aware(datetime(2020, 1, 1))
         
         # Get leaderboard entries
         queryset = LeaderboardEntry.objects.filter(
@@ -863,7 +896,7 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
 
 # ============ MISSION VIEWS ============
 
-class MissionViewSet(viewsets.ModelViewSet):
+class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     """Mission management"""
     permission_classes = [IsAuthenticated]
     serializer_class = UserMissionSerializer
@@ -1044,7 +1077,7 @@ class MissionViewSet(viewsets.ModelViewSet):
 
 # ============ NOTIFICATION VIEWS ============
 
-class NotificationViewSet(viewsets.ModelViewSet):
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """Notification management"""
     permission_classes = [IsAuthenticated]
     serializer_class = NotificationSerializer
@@ -1135,7 +1168,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'count': notifications.count()
         })
 
-class NotificationSettingsViewSet(viewsets.ModelViewSet):
+class NotificationSettingsViewSet(viewsets.ReadOnlyModelViewSet):
     """Notification settings management"""
     permission_classes = [IsAuthenticated]
     serializer_class = UserNotificationSettingsSerializer
@@ -1229,8 +1262,6 @@ class GameStatsViewSet(viewsets.ViewSet):
             'unread_notifications': recent_notifications.count()
         })
     
-
-
     def _get_user_global_rank(self, user):
         """Get user's current global rank"""
         try:
@@ -1241,7 +1272,6 @@ class GameStatsViewSet(viewsets.ViewSet):
             logging.exception("Failed to get user global rank")
         return None
 
-    
     @action(detail=False, methods=['post'])
     def send_test_notification(self, request):
         """Send test notification (for development)"""

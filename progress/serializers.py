@@ -253,7 +253,11 @@ class MissionTemplateSerializer(serializers.ModelSerializer):
 
 class UserMissionSerializer(serializers.ModelSerializer):
     """User mission serializer"""
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
     template = MissionTemplateSerializer(read_only=True)
+    template_id = serializers.PrimaryKeyRelatedField(
+        queryset=MissionTemplate.objects.all(), write_only=True, source='template'
+    )
     progress_percentage = serializers.ReadOnlyField()
     time_remaining = serializers.ReadOnlyField()
     is_expired = serializers.ReadOnlyField()
@@ -264,7 +268,7 @@ class UserMissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserMission
         fields = [
-            'id', 'template', 'title', 'description', 'target_value',
+            'id', 'user', 'template','template_id', 'title', 'description', 'target_value',
             'current_progress', 'progress_percentage', 'start_date', 'end_date',
             'completed_at', 'status', 'status_display', 'xp_reward',
             'bonus_multiplier', 'category', 'time_remaining', 'is_expired',
@@ -372,74 +376,3 @@ class NotificationQueueSerializer(serializers.ModelSerializer):
             'send_push', 'attempts', 'max_attempts', 'error_message',
             'created_at', 'processed_at'
         ]
-
-# ============ DASHBOARD SERIALIZERS ============
-
-class GameDashboardSerializer(serializers.Serializer):
-    """Gamification dashboard summary serializer"""
-    user_level = serializers.IntegerField()
-    user_xp = serializers.IntegerField()
-    user_rank = serializers.IntegerField(allow_null=True)
-    active_missions_count = serializers.IntegerField()
-    unread_notifications_count = serializers.IntegerField()
-    current_streak = serializers.IntegerField()
-    weekly_tasks_completed = serializers.IntegerField()
-    recent_achievements = serializers.ListField()
-    
-class LeaderboardSummarySerializer(serializers.Serializer):
-    """Leaderboard summary for dashboard"""
-    global_rank = serializers.IntegerField(allow_null=True)
-    category_ranks = serializers.DictField()
-    friends_rank = serializers.IntegerField(allow_null=True)
-    total_participants = serializers.IntegerField()
-    rank_change = serializers.IntegerField()
-
-class MissionSummarySerializer(serializers.Serializer):
-    """Mission summary for dashboard"""
-    active_missions = UserMissionSerializer(many=True)
-    completed_this_week = serializers.IntegerField()
-    available_missions_count = serializers.IntegerField()
-    success_rate = serializers.FloatField()
-
-# ============ BULK OPERATION SERIALIZERS ============
-
-class BulkNotificationSerializer(serializers.Serializer):
-    """Bulk notification operations"""
-    notification_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        min_length=1
-    )
-    action = serializers.ChoiceField(choices=['mark_read', 'archive', 'delete'])
-
-class BulkMissionSerializer(serializers.Serializer):
-    """Bulk mission operations"""
-    mission_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        min_length=1
-    )
-    action = serializers.ChoiceField(choices=['abandon', 'refresh_progress'])
-
-# ============ STATISTICS SERIALIZERS ============
-
-class UserStatsSerializer(serializers.Serializer):
-    """User statistics serializer"""
-    total_missions_completed = serializers.IntegerField()
-    total_missions_failed = serializers.IntegerField()
-    success_rate = serializers.FloatField()
-    average_completion_time = serializers.FloatField()
-    favorite_mission_type = serializers.CharField()
-    total_friends = serializers.IntegerField()
-    global_rank = serializers.IntegerField(allow_null=True)
-    badges_earned = serializers.ListField()
-
-class SystemStatsSerializer(serializers.Serializer):
-    """System-wide statistics serializer"""
-    total_users = serializers.IntegerField()
-    active_missions = serializers.IntegerField()
-    completed_missions = serializers.IntegerField()
-    total_notifications = serializers.IntegerField()
-    unread_notifications = serializers.IntegerField()
-    active_friendships = serializers.IntegerField()
-    pending_friend_requests = serializers.IntegerField()
-    popular_mission_types = serializers.DictField()
-    average_user_level = serializers.FloatField()
