@@ -185,4 +185,3 @@ This project is open-source and available under the MIT License.
 * **Author**: [@EmmanuelOlatunde](https://github.com/EmmanuelOlatunde)
 
 ---
->>>>>>> d999e4840504927acc4ffbec98bb95ef713ed687
