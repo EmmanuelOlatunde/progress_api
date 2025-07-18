@@ -21,63 +21,52 @@ class GamificationEngine:
         self.profile, created = ProgressProfile.objects.get_or_create(user=user)
 
     def calculate_task_xp(self, task):
-        """Calculate XP value for a task based on difficulty, category, and timing"""
         base_xp = {
             'easy': 10,
             'medium': 20,
             'hard': 40,
             'expert': 100
         }
+        xp = base_xp.get(task.difficulty, 20)
         
-        xp = base_xp.get(task.difficulty, 25)
-        
-        # Apply category multiplier
-        xp = int(xp * task.category.xp_multiplier)
-        
-        # Priority bonus
         priority_bonus = {
             'low': 1.0,
             'medium': 1.1,
             'high': 1.25,
             'urgent': 2.5
         }
-        xp = int(xp * priority_bonus.get(task.priority, 1.0))
+        # Apply multipliers without intermediate rounding
+        xp = xp * task.category.xp_multiplier
+        xp = xp * priority_bonus.get(task.priority, 1.1)
+        xp = xp * self.get_timing_modifier(task)
         
-        # Apply timing modifier
-        timing_modifier = self.get_timing_modifier(task)
-        xp = int(xp * timing_modifier)
-        
-        return max(xp, 1)  # Ensure minimum 1 XP
+        return max(int(xp), 1)
 
     def get_timing_modifier(self, task):
-        """Calculate timing-based XP modifier"""
         if not task.due_date:
-            return 1.0  # No modifier if no due date
+            return 1.0
         
         now = timezone.now()
-        time_to_due = task.due_date - now
+        total_time = (task.due_date - task.created_at).total_seconds()
         
-        # Calculate percentage of time remaining
-        total_time = task.due_date - task.created_at
-        time_remaining_ratio = time_to_due.total_seconds() / total_time.total_seconds()
-        
-        # Early completion bonus (completed with 50%+ time remaining)
-        if time_remaining_ratio >= 0.5:
-            return 1.3  # 30% bonus
-        # Good timing (completed with 25-50% time remaining)
-        elif time_remaining_ratio >= 0.25:
-            return 1.15  # 15% bonus
-        # On time (completed with 0-25% time remaining)
-        elif time_remaining_ratio >= 0:
-            return 1.0  # Normal XP
-        # Late completion penalties
-        elif time_remaining_ratio >= -0.25:  # Up to 25% late
-            return 0.8  # 20% penalty
-        elif time_remaining_ratio >= -0.5:   # Up to 50% late
-            return 0.6  # 40% penalty
-        else:  # Very late (more than 50% overdue)
-            return 0.4  # 60% penalty
+        if total_time <= 0:  # Avoid division by zero
+            return 1.0
+            
+        time_remaining = (task.due_date - now).total_seconds()
+        ratio = time_remaining / total_time
 
+        if ratio >= 0.5: 
+            return 1.3
+        if ratio >= 0.25: 
+            return 1.15
+        if ratio >= 0: 
+            return 1.0
+        if ratio >= -0.25: 
+            return 0.8
+        if ratio >= -0.5: 
+            return 0.6
+        return 0.4
+    
     def can_complete_task(self, task):
         """Check if task can be completed based on timing restrictions"""
         if not task.due_date:
@@ -147,7 +136,6 @@ class GamificationEngine:
         return xp_earned, f"Task completed! Earned {xp_earned} XP ({timing_status})"
 
     def get_timing_status(self, task):
-        """Get human-readable timing status"""
         if not task.due_date:
             return "no deadline"
         
@@ -174,13 +162,13 @@ class GamificationEngine:
         today = timezone.now().date()
         yesterday = today - timedelta(days=1)
         
-        print(f"DEBUG: Today: {today}")
-        print(f"DEBUG: Last activity: {self.profile.last_activity_date}")
-        print(f"DEBUG: Current streak: {self.profile.current_streak}")
+        # print(f"DEBUG: Today: {today}")
+        # print(f"DEBUG: Last activity: {self.profile.last_activity_date}")
+        # print(f"DEBUG: Current streak: {self.profile.current_streak}")
         
         # FIXED: Check if we've already processed streak for today
         if self.profile.last_activity_date == today:
-            print("DEBUG: Already counted today - no streak update")
+            #print("DEBUG: Already counted today - no streak update")
             return 0
         
         streak_bonus = 0
@@ -189,25 +177,25 @@ class GamificationEngine:
         if self.profile.last_activity_date is None:
             # First time completing a task
             self.profile.current_streak = 1
-            print("DEBUG: Starting first streak")
+            #print("DEBUG: Starting first streak")
         elif self.profile.last_activity_date == yesterday:
             # Continue streak - completed task yesterday and now today
             self.profile.current_streak += 1
-            print(f"DEBUG: Continuing streak to {self.profile.current_streak}")
+            #print(f"DEBUG: Continuing streak to {self.profile.current_streak}")
         else:
             # Streak broken - start new streak
             self.profile.current_streak = 1
-            print("DEBUG: Streak broken - starting new streak")
+            #print("DEBUG: Streak broken - starting new streak")
         
         # Update longest streak
         if self.profile.current_streak > self.profile.longest_streak:
             self.profile.longest_streak = self.profile.current_streak
-            print(f"DEBUG: New longest streak: {self.profile.longest_streak}")
+            #print(f"DEBUG: New longest streak: {self.profile.longest_streak}")
         
         # Calculate streak bonus (every 7 days)
         if self.profile.current_streak > 0 and self.profile.current_streak % 7 == 0:
             streak_bonus = self.profile.current_streak * 5
-            print(f"DEBUG: Streak bonus: {streak_bonus}")
+            #print(f"DEBUG: Streak bonus: {streak_bonus}")
             
             XPLog.objects.create(
                 user=self.user,
@@ -219,7 +207,7 @@ class GamificationEngine:
         # FIXED: Always update last_activity_date to today
         self.profile.last_activity_date = today
         self.profile.save()
-        print(f"DEBUG: Saved profile with streak: {self.profile.current_streak}")
+        #print(f"DEBUG: Saved profile with streak: {self.profile.current_streak}")
         
         return streak_bonus
 
@@ -320,7 +308,7 @@ class GamificationEngine:
         self.profile.last_activity_date = completion_dates[-1] if completion_dates else None
         self.profile.save()
         
-        print(f"Streak recalculated: Current={current_streak}, Longest={longest_streak}")
+        #print(f"Streak recalculated: Current={current_streak}, Longest={longest_streak}")
         return {
             'current_streak': current_streak,
             'longest_streak': longest_streak,
@@ -698,6 +686,9 @@ class LeaderboardService:
 
 class MissionService:
     """Service for managing missions and rewards"""
+    def __init__(self, user):
+        self.user = user
+        self.profile, created = ProgressProfile.objects.get_or_create(user=user)
     
     @staticmethod
     def assign_daily_missions(user_id: int) -> List[UserMission]:
@@ -713,8 +704,8 @@ class MissionService:
         today = timezone.now().date()
         existing_missions = UserMission.objects.filter(
             user_id=user_id,
-            assigned_date=today,
-            mission_type='daily'
+            created_at__date=today,  # Use date comparison
+            template__mission_type='daily_goal'
         )
         
         if existing_missions.exists():
@@ -723,29 +714,37 @@ class MissionService:
         # Get available mission templates based on user level
         available_templates = MissionTemplate.objects.filter(
             is_active=True,
-            min_level__lte=profile.level,
-            max_level__gte=profile.level,
-            mission_type='daily'
+            min_user_level__lte=profile.current_level,
+            max_user_level__gte=profile.current_level,
+            mission_type='daily_goal'
         )
         
-        # Select random missions (typically 3-5 daily missions)
-        mission_count = random.randint(3, 5)
+        # Handle case when no templates are available
+        if not available_templates.exists():
+            return []
+        
+        # Select random missions (3-5 daily missions) but not more than available
+        max_possible = min(5, len(available_templates))
+        mission_count = random.randint(min(3, max_possible), max_possible)
+        
         selected_templates = random.sample(
             list(available_templates), 
-            min(mission_count, len(available_templates))
+            mission_count
         )
         
         # Create user missions
         missions = []
         for template in selected_templates:
             mission = UserMission.objects.create(
-                user_id=user_id,
-                template=template,
-                mission_type='daily',
-                assigned_date=today,
-                target_value=MissionService._calculate_target_value(template, profile),
-                xp_reward=template.base_xp_reward,
-                coin_reward=template.base_coin_reward
+            user_id=user_id,
+            template=template,
+            title=template.name,
+            description=template.description,
+            target_value=MissionService._calculate_target_value(template, profile),
+            xp_reward=template.xp_reward,
+            bonus_multiplier=template.bonus_multiplier,
+            category=template.category,
+            end_date=timezone.now() + timedelta(days=template.duration_days)
             )
             missions.append(mission)
         
@@ -754,11 +753,11 @@ class MissionService:
     @staticmethod
     def _calculate_target_value(template: MissionTemplate, profile) -> int:
         """Calculate target value based on template and user profile"""
-        base_target = template.base_target_value
+        base_target = template.target_value
         
         # Adjust based on user level and performance
-        level_multiplier = 1 + (profile.level - 1) * 0.1
-        performance_multiplier = 1 + (profile.average_completion_rate() - 0.5)
+        level_multiplier = 1 + (profile.current_level - 1) * 0.1
+        performance_multiplier = 1 + (profile.punctuality_rate() - 0.5)
         
         adjusted_target = int(base_target * level_multiplier * performance_multiplier)
         return max(1, adjusted_target)  # Ensure at least 1
@@ -768,8 +767,9 @@ class MissionService:
         """Update progress for user's active missions"""
         active_missions = UserMission.objects.filter(
             user_id=user_id,
-            is_completed=False,
+            status='active',
             template__mission_type=mission_type
+
         )
         
         completed_missions = []
@@ -781,6 +781,7 @@ class MissionService:
             )
             
             if mission.current_progress >= mission.target_value:
+                mission.status = 'completed'
                 mission.is_completed = True
                 mission.completed_at = timezone.now()
                 completed_missions.append(mission)
@@ -816,11 +817,11 @@ class MissionService:
     def get_user_missions(user_id: int, mission_type: str = None) -> List[UserMission]:
         """Get user's current missions"""
         queryset = UserMission.objects.filter(user_id=user_id).select_related('template')
-        
+    
         if mission_type:
-            queryset = queryset.filter(mission_type=mission_type)
+            queryset = queryset.filter(template__mission_type=mission_type)
         
-        return list(queryset.order_by('-assigned_date', 'is_completed'))
+        return list(queryset.order_by('-created_at', 'completed_at'))
 
 
 class SystemService:
@@ -848,6 +849,7 @@ class SystemService:
         )
         return setting
     
+ 
     @staticmethod
     def run_daily_maintenance() -> Dict:
         """Run daily maintenance tasks"""
@@ -859,13 +861,16 @@ class SystemService:
         }
         
         try:
+            # Get current time once for consistency
+            now = timezone.now()
+            
             # Update daily leaderboards
             LeaderboardService.update_rankings('daily')
             results['leaderboards_updated'] = True
             
             # Assign daily missions to active users
             active_users = User.objects.filter(
-                last_login__gte=timezone.now() - timedelta(days=7)
+                last_login__gte=now - timedelta(days=7)
             )
             
             for user in active_users:
@@ -873,17 +878,22 @@ class SystemService:
                 results['missions_assigned'] += len(missions)
             
             # Clean old notifications (older than 30 days)
+            cutoff_datetime = now - timedelta(days=30)
             old_notifications = Notification.objects.filter(
-                created_at__lt=timezone.now() - timedelta(days=30)
+                created_at__lt=cutoff_datetime
             )
             deleted_count = old_notifications.count()
             old_notifications.delete()
             results['notifications_cleaned'] = deleted_count
             
             # Update system settings
-            SystemService.set_setting('last_maintenance_run', timezone.now().isoformat())
+            SystemService.set_setting('last_maintenance_run', now.isoformat())
             
         except Exception as e:
             results['error'] = str(e)
         
         return results
+
+
+
+ 

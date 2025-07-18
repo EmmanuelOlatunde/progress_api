@@ -14,6 +14,7 @@ from .gamification import GamificationEngine
 from rest_framework.pagination import PageNumberPagination
 import random
 from rest_framework.exceptions import NotFound
+from .pagination import CustomPageNumberPagination
 import logging
 from .models import (
     Task, Category, XPLog, ProgressProfile, Achievement,
@@ -28,7 +29,7 @@ from .serializers import (
     ProgressProfileSerializer, AchievementSerializer, WeeklyReviewSerializer)
 
 
-
+logger = logging.getLogger(__name__)
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
@@ -37,8 +38,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return Category.objects.none()
         return Category.objects.annotate(
-            user_task_count=Count('tasks', filter=Q(tasks__user=self.request.user))
-        )
+            task_count=Count('tasks', filter=Q(tasks__user=self.request.user))
+        ).order_by('created_at')
 
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
@@ -452,6 +453,7 @@ class WeeklyReviewViewSet(viewsets.ModelViewSet):
                 # Instead of raising NotFound, return empty queryset
                 return WeeklyReview.objects.none()
             return queryset
+    
     def perform_create(self, serializer):
         """Automatically set the user when creating a review"""
         serializer.save(user=self.request.user)
@@ -668,15 +670,13 @@ class UserProgressProfileViewSet(viewsets.ReadOnlyModelViewSet):
         """
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
             raise NotFound("No Profile found.")
-        return ProgressProfile.objects.filter(user=self.request.user)
+        return ProgressProfile.objects.filter(user=self.request.user).order_by('id')
 
     def get_object(self):
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
             raise NotFound("No Profile found.")
         return self.request.user.progress_profile
     
-
-
 # ============ LEADERBOARD VIEWS ============
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -823,8 +823,8 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
             raise NotFound("No Friends found.")
-        return UserFriendship.objects.filter(user=self.request.user)
-    
+        return UserFriendship.objects.filter(user=self.request.user).order_by('-created_at')
+
     @action(detail=False, methods=['post'])
     def send_request(self, request):
         """Send friend request"""
@@ -904,7 +904,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
             raise NotFound("No Missions found Available.")
-        return UserMission.objects.filter(user=self.request.user)
+        return UserMission.objects.filter(user=self.request.user).order_by('-created_at')
     
     @action(detail=False, methods=['get'])
     def available_missions(self, request):
@@ -956,8 +956,16 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     def accept_mission(self, request):
         """Accept a mission"""
         template_id = request.data.get('template_id')
-        if not template_id:
-            return Response({'error': 'Template ID required'}, status=400)
+        try:
+            template_id = int(template_id)
+            if template_id <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid template_id. Must be a positive integer.'}, status=400)
+        template = get_object_or_404(MissionTemplate, id=template_id, is_active=True)
+
+        # if not template_id:
+        #     return Response({'error': 'Template ID required'}, status=400)
         
         template = get_object_or_404(MissionTemplate, id=template_id, is_active=True)
         user = request.user
@@ -1007,6 +1015,15 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def generate_random_missions(self, request):
         """Generate random missions for user"""
+        
+        count_str = request.data.get('count', '3')
+        try:
+            count = min(int(count_str), 5)
+            if count <= 0:
+                raise ValueError
+        except ValueError:
+            return Response({'error': 'Invalid count parameter. Must be a positive integer.'}, status=400)
+        
         user = request.user
         user_level = getattr(user.progress_profile, 'current_level', 0)
         count = min(int(request.data.get('count', 3)), 5)
@@ -1064,16 +1081,26 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({'mission_progress': progress_data})
     
     @action(detail=False, methods=['post'])
-    def check_mission_updates(self, request):
+    def update_mission_progress(self, request):
         """Check and update mission progress based on recent tasks"""
         from .gamification import MissionService
+        
         user = request.user
-        updated_missions = MissionService.update_all_missions(user)
+        
+        # Get mission_type from request or default
+        mission_type = request.data.get('mission_type', 'default')  # you can decide a default
+        
+        updated_missions = MissionService.update_mission_progress(
+            user_id=user.id,
+            mission_type=mission_type,
+            progress_value=1
+        )
         
         return Response({
             'updated_missions': len(updated_missions),
             'missions': UserMissionSerializer(updated_missions, many=True).data
         })
+
 
 # ============ NOTIFICATION VIEWS ============
 
@@ -1081,7 +1108,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """Notification management"""
     permission_classes = [IsAuthenticated]
     serializer_class = NotificationSerializer
-    pagination_class = StandardResultsSetPagination
+    pagination_class = CustomPageNumberPagination
     
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
@@ -1089,7 +1116,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Notification.objects.filter(
             user=self.request.user,
             is_archived=False
-        ).select_related('user')
+        ).select_related('user').order_by('-created_at')
     
     @action(detail=False, methods=['get'])
     def unread_count(self, request):
@@ -1219,49 +1246,60 @@ class NotificationSettingsViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
             raise NotFound("No Profile found.")
-        return UserNotificationSettings.objects.filter(user=self.request.user)
+        return UserNotificationSettings.objects.filter(user=self.request.user).order_by('-created_at')
 
 # ============ UTILITY VIEWS ============
 
 class GameStatsViewSet(viewsets.ViewSet):
     """General game statistics and utilities"""
     permission_classes = [IsAuthenticated]
-    
+  
     @action(detail=False, methods=['get'])
     def dashboard_summary(self, request):
         """Get summary data for gamification dashboard"""
         user = request.user
-        
-        # Get active missions
-        active_missions = UserMission.objects.filter(user=user, status='active')
-        
-        # Get recent notifications
-        recent_notifications = Notification.objects.filter(
-            user=user,
-            is_read=False,
-            created_at__gte=timezone.now() - timedelta(days=3)
-        )[:5]
-        
-        # Get leaderboard position
-        user_rank = self._get_user_global_rank(user)
-        
-        # Get weekly stats
-        week_start = timezone.now() - timedelta(days=7)
-        from .models import Task
-        weekly_tasks = Task.objects.filter(
-            user=user,
-            completed_at__gte=week_start,
-            is_completed=True
-        ).count()
-        
-        return Response({
-            'active_missions': UserMissionSerializer(active_missions, many=True).data,
-            'recent_notifications': NotificationSerializer(recent_notifications, many=True).data,
-            'global_rank': user_rank,
-            'weekly_tasks_completed': weekly_tasks,
-            'unread_notifications': recent_notifications.count()
-        })
-    
+
+        try:
+            # Get active missions
+            active_missions = UserMission.objects.filter(user=user, status='active')
+
+            # Get recent notifications (last 3 days)
+            recent_notifications = Notification.objects.filter(
+                user=user,
+                is_read=False,
+                created_at__gte=timezone.now() - timedelta(days=3)
+            )[:5]
+
+            # Get leaderboard position
+            user_rank = self._get_user_global_rank(user)
+
+            # Get weekly stats
+            week_start = timezone.now() - timedelta(days=7)
+            from .models import Task
+            weekly_tasks = Task.objects.filter(
+                user=user,
+                completed_at__gte=week_start,
+                is_completed=True
+            ).count()
+
+            # ✅ Normal response
+            return Response({
+                'active_missions': UserMissionSerializer(active_missions, many=True).data,
+                'recent_notifications': NotificationSerializer(recent_notifications, many=True).data,
+                'global_rank': user_rank,
+                'weekly_tasks_completed': weekly_tasks,
+                'unread_notifications': recent_notifications.count()
+            })
+
+        except Exception as e:
+            # ✅ Log the error properly
+            logger.exception(f"Error generating dashboard summary for user {user.id}: {str(e)}")
+
+            # ✅ Return a structured error response
+            return Response({
+                "detail": "An unexpected error occurred while generating the dashboard summary."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def _get_user_global_rank(self, user):
         """Get user's current global rank"""
         try:
@@ -1308,7 +1346,6 @@ class GameStatsViewSet(viewsets.ViewSet):
         }
         
         return Response({'system_stats': stats})
-
 
 def index(request):
     return render(request, 'index.html')

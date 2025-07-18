@@ -4,7 +4,6 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from datetime import timedelta
 
-
 User = get_user_model()
 
 class Category(models.Model):
@@ -185,11 +184,12 @@ class ProgressProfile(models.Model):
 
     @property
     def progress_percentage(self):
-        """Progress percentage within current level"""
-        xp_needed_for_level_segment = self.xp_for_next_level - self.xp_for_current_level
-        if xp_needed_for_level_segment <= 0:
+        xp_needed = self.xp_for_next_level - self.xp_for_current_level
+        xp_progress = max(self.xp_progress_in_current_level, 0)  # avoid negative
+        if xp_needed <= 0:
             return 100.0
-        return (self.xp_progress_in_current_level / xp_needed_for_level_segment) * 100.0
+        return (xp_progress / xp_needed) * 100.0
+
 
     @property
     def xp_needed_for_next_level(self):
@@ -270,8 +270,8 @@ class UserAchievement(models.Model):
         return f"{self.user.username} unlocked {self.achievement.name}"
 
 class WeeklyReview(models.Model):
-
     """Model to store weekly performance reviews"""
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='weekly_reviews')
     week_start = models.DateField()
     week_end = models.DateField()
@@ -280,8 +280,8 @@ class WeeklyReview(models.Model):
     early_completions = models.IntegerField(default=0)
     on_time_completions = models.IntegerField(default=0)
     late_completions = models.IntegerField(default=0)
-    performance_score = models.IntegerField(default=0)  # Score out of 100
-    suggestions = models.TextField(blank=True)
+    performance_score = models.FloatField(default=0)  # Score out of 100
+    suggestions = models.TextField(default="", blank=True)
     category_breakdown = models.JSONField(default=dict)  # Store category performance data
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -306,7 +306,7 @@ class WeeklyReview(models.Model):
         total_timed_tasks = self.early_completions + self.on_time_completions + self.late_completions
         if total_timed_tasks == 0:
             return 100
-        return int(((self.early_completions * 2 + self.on_time_completions) / (total_timed_tasks * 2)) * 100)
+        return round(((self.early_completions * 2 + self.on_time_completions) / (total_timed_tasks * 2)) * 100, 1)
 
     @property
     def performance_grade(self):
@@ -403,6 +403,7 @@ class UserMission(models.Model):
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField()
     completed_at = models.DateTimeField(null=True, blank=True)
+    is_completed = models.BooleanField(default=False)
     
     # Status and rewards
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
@@ -469,9 +470,9 @@ class UserMission(models.Model):
         self.save()
         
         # Award XP
-        from .gamification import GamificationEngine
-        engine = GamificationEngine(self.user)
-        engine.award_mission_xp(self)
+        from .gamification import MissionService
+        engine = MissionService(self.user)
+        engine._award_mission_rewards(self)
         
         # Create notification
         Notification.objects.create(
@@ -737,7 +738,7 @@ class NotificationQueue(models.Model):
     # Scheduling
     scheduled_for = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
+     
     # Delivery preferences
     send_email = models.BooleanField(default=False)
     send_push = models.BooleanField(default=True)

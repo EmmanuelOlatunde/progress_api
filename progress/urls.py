@@ -33,7 +33,6 @@ router.register(r'game-stats', GameStatsViewSet, basename='game-stats')
 
 urlpatterns = [
     
-    
     # Direct paths
     path('', include(router.urls)),
     path('index/', index, name='index'),

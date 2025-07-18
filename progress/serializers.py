@@ -8,9 +8,6 @@ from .models import (
     Notification, NotificationType, UserNotificationSettings, NotificationQueue
 )
 
-
-
-
 User = get_user_model()
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -21,11 +18,17 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'color', 'xp_multiplier', 'task_count', 'created_at']
 
     def get_task_count(self, obj):
+        # If annotated value is available, use it
+        if hasattr(obj, 'task_count'):
+            return obj.task_count
+        
+        # Otherwise fallback
         user = self.context['request'].user if self.context.get('request') else None
         if user and user.is_authenticated:
             return obj.tasks.filter(user=user).count()
         return obj.tasks.count()
 
+        
 class WeeklyReviewSerializer(serializers.ModelSerializer):
     completion_rate = serializers.ReadOnlyField()
     punctuality_score = serializers.ReadOnlyField()
@@ -68,7 +71,10 @@ class TaskSerializer(serializers.ModelSerializer):
         return engine.calculate_task_xp(obj)
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
+        user = self.context['request'].user
+        if not user.is_authenticated:
+            raise serializers.ValidationError("User must be authenticated to create a task")
+        validated_data['user'] = user
         return super().create(validated_data)
 
 class XPLogSerializer(serializers.ModelSerializer):
@@ -114,7 +120,8 @@ class AchievementSerializer(serializers.ModelSerializer):
     def get_is_unlocked(self, obj):
         user = self.context['request'].user if self.context.get('request') else None
         if user and user.is_authenticated:
-            return UserAchievement.objects.filter(user=user, achievement=obj).exists()
+            user_achievement = UserAchievement.objects.filter(user=user, achievement=obj).first()
+            return bool(user_achievement and user_achievement.unlocked_at is not None)
         return False
 
     def get_progress(self, obj):
@@ -214,16 +221,30 @@ class UserFriendshipSerializer(serializers.ModelSerializer):
         model = UserFriendship
         fields = ['id', 'friend', 'friend_username', 'status', 'created_at']
     
+    def validate_friend_username(self, value):
+        """Validate that the friend username exists"""
+        if value:
+            try:
+                self._validated_friend = User.objects.get(username=value)
+            except User.DoesNotExist:
+                raise serializers.ValidationError('User not found')
+        return value
+
     def create(self, validated_data):
+        user = self.context['request'].user
         friend_username = validated_data.pop('friend_username', None)
         if friend_username:
-            try:
-                friend = User.objects.get(username=friend_username)
-                validated_data['friend'] = friend
-            except User.DoesNotExist:
-                raise serializers.ValidationError({'friend_username': 'User not found'})
-        
+            validated_data['friend'] = getattr(self, '_validated_friend', None)
+        validated_data['user'] = user
         return super().create(validated_data)
+    
+    def validate(self, data):
+        user = self.context['request'].user if self.context.get('request') else None
+        friend = getattr(self, '_validated_friend', None)
+        if user and friend and UserFriendship.objects.filter(user=user, friend=friend).exists():
+            raise serializers.ValidationError({'friend_username': 'Already friends'})
+        return data
+
 
 # ============ MISSION SERIALIZERS ============
 
@@ -264,6 +285,8 @@ class UserMissionSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     days_remaining = serializers.SerializerMethodField()
     difficulty_color = serializers.SerializerMethodField()
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+
     
     class Meta:
         model = UserMission
@@ -282,7 +305,8 @@ class UserMissionSerializer(serializers.ModelSerializer):
         
         time_remaining = obj.time_remaining
         if time_remaining:
-            return max(0, time_remaining.days)
+            from math import ceil
+            return max(0, ceil(time_remaining.total_seconds() / 86400))
         return 0
     
     def get_difficulty_color(self, obj):
