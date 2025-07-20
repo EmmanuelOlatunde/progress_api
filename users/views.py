@@ -1,9 +1,11 @@
 from rest_framework import status, generics, permissions, viewsets
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView 
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.core.paginator import Paginator
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
@@ -400,107 +402,109 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-timestamp']
     
     def get_queryset(self):
-        """Return activities for current user only"""
+        """Return activities for current user only and all for admin"""
+        if self.request.user.is_superuser:
+            return UserActivity.objects.all()
         return UserActivity.objects.filter(user=self.request.user)
 
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def current_user(request):
+class CurrentUserView(APIView):
     """
     Get current authenticated user details
     GET /api/auth/me/
     """
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+    permission_classes = [IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([permissions.AllowAny])
-def public_profiles_list(request):
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+    
+class PublicProfilesListView(APIView):
     """
-    Get list of public user profiles
+    Get list of public user profiles with search, filtering & pagination
     GET /api/profiles/public/
     """
-    users = CustomUser.objects.filter(is_profile_public=True).select_related('profile')
-    
-    # Add search functionality
-    search = request.GET.get('search', '')
-    if search:
-        users = users.filter(
-            Q(username__icontains=search) |
-            Q(first_name__icontains=search) |
-            Q(last_name__icontains=search) |
-            Q(profile__job_title__icontains=search) |
-            Q(profile__skills__icontains=search)
-        )
-    
-    # Add filtering by experience level
-    experience = request.GET.get('experience', '')
-    if experience:
-        users = users.filter(profile__experience_level=experience)
-    
-    # Pagination
-    from django.core.paginator import Paginator
-    paginator = Paginator(users, 12)  # 12 profiles per page
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-    
-    serializer = PublicUserSerializer(page_obj, many=True)
-    
-    return Response({
-        'results': serializer.data,
-        'count': paginator.count,
-        'num_pages': paginator.num_pages,
-        'current_page': page_obj.number,
-        'has_next': page_obj.has_next(),
-        'has_previous': page_obj.has_previous(),
-    })
+    permission_classes = [AllowAny]
 
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
-def upload_avatar(request):
+    def get(self, request):
+        users = CustomUser.objects.filter(is_profile_public=True).select_related('profile')
+
+        # Add search functionality
+        search = request.GET.get('search', '')
+        if search:
+            users = users.filter(
+                Q(username__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(profile__job_title__icontains=search) |
+                Q(profile__skills__icontains=search)
+            )
+
+        # Add filtering by experience level
+        experience = request.GET.get('experience', '')
+        if experience:
+            users = users.filter(profile__experience_level=experience)
+
+        # Pagination
+        paginator = Paginator(users, 12)  # 12 profiles per page
+        page_number = request.GET.get('page', 1)
+        page_obj = paginator.get_page(page_number)
+
+        serializer = PublicUserSerializer(page_obj, many=True)
+
+        return Response({
+            'results': serializer.data,
+            'count': paginator.count,
+            'num_pages': paginator.num_pages,
+            'current_page': page_obj.number,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        })
+
+class UploadAvatarView(APIView):
     """
     Upload user avatar
     POST /api/profile/avatar/
     """
-    if 'avatar' not in request.FILES:
-        return Response({'error': 'No avatar file provided'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    avatar_file = request.FILES['avatar']
-    
-    # Validate file size (max 5MB)
-    if avatar_file.size > 5 * 1024 * 1024:
-        return Response({'error': 'Avatar file too large. Max size is 5MB'}, 
-                       status=status.HTTP_400_BAD_REQUEST)
-    
-    # Validate file type
-    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-    if avatar_file.content_type not in allowed_types:
-        return Response({'error': 'Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image'}, 
-                       status=status.HTTP_400_BAD_REQUEST)
-    
-    # Save avatar
-    user = request.user
-    user.avatar = avatar_file
-    user.save()
-    
-    # Log avatar update activity
-    UserActivity.objects.create(
-        user=user,
-        activity_type='avatar_update',
-        ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')
-    )
-    
-    return Response({
-        'message': 'Avatar uploaded successfully',
-        'avatar_url': user.get_avatar_url()
-    })
+    permission_classes = [IsAuthenticated]
 
-def get_client_ip(request):
-    """Helper function to get client IP address"""
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    def post(self, request):
+        if 'avatar' not in request.FILES:
+            return Response({'error': 'No avatar file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        avatar_file = request.FILES['avatar']
+
+        # Validate file size (max 5MB)
+        if avatar_file.size > 5 * 1024 * 1024:
+            return Response({'error': 'Avatar file too large. Max size is 5MB'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        if avatar_file.content_type not in allowed_types:
+            return Response({'error': 'Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Save avatar
+        user = request.user
+        user.avatar = avatar_file
+        user.save()
+
+        # Log avatar update activity
+        UserActivity.objects.create(
+            user=user,
+            activity_type='avatar_update',
+            ip_address=self.get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+
+        return Response({
+            'message': 'Avatar uploaded successfully',
+            'avatar_url': user.get_avatar_url()
+        })
+
+    def get_client_ip(self, request):
+        """Helper to get client IP address"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0]
+        return request.META.get('REMOTE_ADDR')

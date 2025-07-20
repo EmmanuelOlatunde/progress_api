@@ -24,8 +24,8 @@ class CustomUser(AbstractUser):
     
     # Phone number with validation
     phone_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
-        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+        regex=r'^\+?\d{9,15}$',
+        message="Phone number must be entered in the format: '+999999999'. 9 to 15 digits allowed."
     )
     phone_number = models.CharField(validators=[phone_regex], max_length=17, blank=True)
     
@@ -146,7 +146,7 @@ class UserProfile(models.Model):
             self.learning_goals,
         ]
         
-        filled_fields = sum(1 for field in fields_to_check if field)
+        filled_fields = sum(1 for field in fields_to_check if field and field != '')
         completeness = int((filled_fields / len(fields_to_check)) * 100)
         
         if self.profile_completeness != completeness:

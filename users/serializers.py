@@ -151,11 +151,19 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = (
-            'first_name', 'last_name', 'bio', 'avatar', 'location',
+            'first_name','username', 'last_name', 'bio', 'avatar', 'location',
             'website', 'phone_number', 'is_profile_public',
-            'email_notifications', 'profile'
+            'email_notifications', 'profile', 'email'
         )
-    
+    def validate_email(self, value):
+        from django.core.validators import validate_email
+        try:
+            validate_email(value)
+        except:
+            raise serializers.ValidationError("Invalid email format")
+        if CustomUser.objects.filter(email=value).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
     def update(self, instance, validated_data):
         """Update user and profile data"""
         profile_data = validated_data.pop('profile', None)

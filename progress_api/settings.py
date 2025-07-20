@@ -84,6 +84,13 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,  # in seconds
+        },
+        # This configuration will be used when you run tests
+        'TEST': {
+            'NAME': ':memory:',
+        },
     }
 }
 
