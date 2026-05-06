@@ -125,6 +125,7 @@ class Task(models.Model):
             'completion_message': message
         }
 
+# ✅ AFTER
 class XPLog(models.Model):
     ACTION_CHOICES = [
         ('task_complete', 'Task Completion'),
@@ -132,6 +133,7 @@ class XPLog(models.Model):
         ('achievement', 'Achievement Unlock'),
         ('daily_login', 'Daily Login'),
         ('bonus', 'Manual Bonus'),
+        ('mission_complete', 'Mission Completion'),  # ✅ Added — was silently missing
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_logs')
@@ -141,6 +143,11 @@ class XPLog(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} earned {self.xp_earned} XP for {self.get_action_display()}"
     class Meta:
         ordering = ['-created_at']
 
@@ -223,12 +230,11 @@ class ProgressProfile(models.Model):
             engine = GamificationEngine(self.user)
             engine.check_level_achievements(old_level, self.current_level)
 
-
+    @property
     def punctuality_rate(self):
-        """Calculate overall punctuality rate"""
-        total_timed_tasks = (self.total_early_completions + 
-                           self.total_on_time_completions + 
-                           self.total_late_completions)
+        total_timed_tasks = (self.total_early_completions +
+                            self.total_on_time_completions +
+                            self.total_late_completions)
         if total_timed_tasks == 0:
             return 100
         return int(((self.total_early_completions + self.total_on_time_completions) / total_timed_tasks) * 100)
@@ -460,21 +466,18 @@ class UserMission(models.Model):
         
         return True
     
+
     def complete_mission(self):
-        """Mark mission as completed and award rewards"""
         if self.status != 'active':
             return False
-        
+
         self.status = 'completed'
         self.completed_at = timezone.now()
         self.save()
-        
-        # Award XP
+
         from .gamification import MissionService
-        engine = MissionService(self.user)
-        engine._award_mission_rewards(self)
-        
-        # Create notification
+        MissionService._award_mission_rewards(self.user.id, self)  # ← static call with both args
+
         Notification.objects.create(
             user=self.user,
             notification_type='mission_completed',
@@ -482,7 +485,7 @@ class UserMission(models.Model):
             message=f'You completed "{self.title}" and earned {self.xp_reward} XP!',
             data={'mission_id': self.id, 'xp_earned': self.xp_reward}
         )
-        
+
         return True
     
     def fail_mission(self):

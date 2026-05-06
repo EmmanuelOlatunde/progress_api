@@ -17,7 +17,7 @@ SECRET_KEY = 'django-insecure-kc0o@(6l-_cy*!d^w$y+qpmus%yvou#=&h0@am5_y3a!l7o8#v
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # Allow all hosts during development, update for production
 
 
 # Application definition
@@ -46,9 +46,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -250,11 +250,10 @@ FILE_UPLOAD_PERMISSIONS = 0o644
 
 # CORS Configuration (if using frontend)
 CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:8000",
-    "http://localhost:8000",
-  
+    "http://localhost:8080",        # ← your Vite dev server
+    "http://127.0.0.1:8080",       # ← same, but IP form
+    "http://192.168.1.119:8080",   # ← local network access
 ]
-
 CORS_ALLOW_CREDENTIALS = True
 
 # Security Settings
@@ -304,9 +303,9 @@ LOGGING = {
 # Cache Configuration (optional but recommended)
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
+    # Switch to Redis when you're ready to run it
 }
 
 # Session Configuration

@@ -65,11 +65,48 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_timing_info(self, obj):
         return obj.get_timing_info()
     
-    def get_xp_value(self, obj):
-        from .gamification import GamificationEngine
-        engine = GamificationEngine(obj.user)
-        return engine.calculate_task_xp(obj)
+# class TaskSerializer(serializers.ModelSerializer):
+#     xp_value = serializers.SerializerMethodField()
 
+    def get_xp_value(self, obj):
+        """
+        Calculate XP without instantiating GamificationEngine.
+        This is a pure calculation based on task properties — no DB hit needed.
+        The timing modifier requires due_date and created_at, both already on the object.
+        """
+        base_xp = {
+            'easy': 10,
+            'medium': 20,
+            'hard': 40,
+            'expert': 100
+        }.get(obj.difficulty, 20)
+
+        priority_bonus = {
+            'low': 1.0,
+            'medium': 1.1,
+            'high': 1.25,
+            'urgent': 2.5
+        }.get(obj.priority, 1.1)
+
+        # Timing modifier (mirrors GamificationEngine.get_timing_modifier)
+        timing_modifier = 1.0
+        if obj.due_date:
+            from django.utils import timezone
+            now = timezone.now()
+            total_time = (obj.due_date - obj.created_at).total_seconds()
+            if total_time > 0:
+                time_remaining = (obj.due_date - now).total_seconds()
+                ratio = time_remaining / total_time
+                if ratio >= 0.5: timing_modifier = 1.3
+                elif ratio >= 0.25: timing_modifier = 1.15
+                elif ratio >= 0: timing_modifier = 1.0
+                elif ratio >= -0.25: timing_modifier = 0.8
+                elif ratio >= -0.5: timing_modifier = 0.6
+                else: timing_modifier = 0.4
+
+        xp = base_xp * obj.category.xp_multiplier * priority_bonus * timing_modifier
+        return max(int(xp), 1)
+    
     def create(self, validated_data):
         user = self.context['request'].user
         if not user.is_authenticated:
@@ -112,37 +149,35 @@ class AchievementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Achievement
         fields = [
-            'id', 'name', 'description', 'achievement_type', 'icon', 
-            'threshold', 'xp_reward','achievement_type_display', 
+            'id', 'name', 'description', 'achievement_type', 'icon',
+            'threshold', 'xp_reward', 'achievement_type_display',
             'is_unlocked', 'progress', 'unlocked_at'
         ]
 
+    def _get_user_achievement(self, obj):
+        """Single lookup from prefetched map — no DB hit."""
+        ua_map = self.context.get('user_achievement_map', {})
+        return ua_map.get(obj.id)
+
     def get_is_unlocked(self, obj):
-        user = self.context['request'].user if self.context.get('request') else None
-        if user and user.is_authenticated:
-            user_achievement = UserAchievement.objects.filter(user=user, achievement=obj).first()
-            return bool(user_achievement and user_achievement.unlocked_at is not None)
-        return False
+        ua = self._get_user_achievement(obj)
+        return bool(ua and ua.unlocked_at is not None)
 
     def get_progress(self, obj):
-        user = self.context['request'].user if self.context.get('request') else None
+        ua = self._get_user_achievement(obj)
+        if ua:
+            return ua.progress
+        # Only hits DB for the progress calculation on locked achievements
+        user = self.context.get('request') and self.context['request'].user
         if user and user.is_authenticated:
-            user_achievement = UserAchievement.objects.filter(user=user, achievement=obj).first()
-            if user_achievement:
-                return user_achievement.progress
-            
-            # Calculate current progress for unachieved achievements
             from .gamification import GamificationEngine
             engine = GamificationEngine(user)
             return engine.get_achievement_progress(obj)
         return 0
 
     def get_unlocked_at(self, obj):
-        user = self.context['request'].user if self.context.get('request') else None
-        if user and user.is_authenticated:
-            user_achievement = UserAchievement.objects.filter(user=user, achievement=obj).first()
-            return user_achievement.unlocked_at if user_achievement else None
-        return None
+        ua = self._get_user_achievement(obj)
+        return ua.unlocked_at if ua else None
     
 class UserAchievementSerializer(serializers.ModelSerializer):
 
@@ -203,13 +238,12 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
         return 0
     
     def get_performance_badge(self, obj):
-        """Get performance badge based on stats"""
         if obj.punctuality_rate >= 90:
-            return {'name': 'Time Master', 'color': '#gold'}
+            return {'name': 'Time Master', 'color': '#FFD700'}      # Gold
         elif obj.streak_count >= 7:
-            return {'name': 'Streak Legend', 'color': '#orange'}
+            return {'name': 'Streak Legend', 'color': '#FFA500'}    # Orange
         elif obj.tasks_completed >= 50:
-            return {'name': 'Task Crusher', 'color': '#blue'}
+            return {'name': 'Task Crusher', 'color': '#007BFF'}     # Blue
         return None
 
 class UserFriendshipSerializer(serializers.ModelSerializer):

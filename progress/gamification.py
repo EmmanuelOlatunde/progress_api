@@ -1,4 +1,5 @@
 from django.utils import timezone
+from datetime import datetime, timezone as dt_timezone
 from django.db import models
 from django.db.models import Sum
 from django.contrib.auth import get_user_model
@@ -14,6 +15,9 @@ from .models import (
 
 User = get_user_model()
 
+
+# Epoch start for "all time" leaderboards — change this in one place when needed
+LEADERBOARD_EPOCH = datetime(2020, 1, 1, tzinfo=dt_timezone.utc)
 
 class GamificationEngine:
     def __init__(self, user):
@@ -258,61 +262,56 @@ class GamificationEngine:
             'yesterday_tasks': yesterday_tasks.count()
         }
 
-    # ADDED: Method to manually fix/reset streak if needed
     def recalculate_streak(self):
-        """Recalculate streak based on actual task completion history"""
-        # Get all completed tasks ordered by completion date
         completed_tasks = Task.objects.filter(
             user=self.user,
             is_completed=True
         ).order_by('completed_at')
-        
+
         if not completed_tasks.exists():
             self.profile.current_streak = 0
             self.profile.longest_streak = 0
             self.profile.last_activity_date = None
             self.profile.save()
-            return {
-                'current_streak': 0,
-                'longest_streak': 0,
-                'last_activity': None
-            }
-        
-        # Get unique completion dates
-        completion_dates = list(set(
+            return {'current_streak': 0, 'longest_streak': 0, 'last_activity': None}
+
+        completion_dates = sorted(set(
             task.completed_at.date() for task in completed_tasks
         ))
-        completion_dates.sort()
-        
+
         current_streak = 0
         longest_streak = 0
         last_date = None
-        
+
         for date in completion_dates:
             if last_date is None or date == last_date + timedelta(days=1):
-                # Start new streak or continue existing streak
                 current_streak += 1
             else:
-                # Streak broken
                 longest_streak = max(longest_streak, current_streak)
                 current_streak = 1
-            
             last_date = date
-        
-        # Final check for longest streak
+
         longest_streak = max(longest_streak, current_streak)
-        
-        # Update profile
+
+        # ✅ FIX: Check if the streak is still active as of today.
+        # If the last activity wasn't today or yesterday, the streak is broken.
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        last_activity = completion_dates[-1]
+
+        if last_activity < yesterday:
+            # The streak has been broken — user didn't complete anything today or yesterday
+            current_streak = 0
+
         self.profile.current_streak = current_streak
         self.profile.longest_streak = longest_streak
-        self.profile.last_activity_date = completion_dates[-1] if completion_dates else None
+        self.profile.last_activity_date = last_activity
         self.profile.save()
-        
-        #print(f"Streak recalculated: Current={current_streak}, Longest={longest_streak}")
+
         return {
             'current_streak': current_streak,
             'longest_streak': longest_streak,
-            'last_activity': self.profile.last_activity_date
+            'last_activity': last_activity
         }
 
     def generate_weekly_review(self):
@@ -536,7 +535,7 @@ class LeaderboardService:
         elif period == 'monthly':
             start_date = end_date - timedelta(days=30)
         else:
-            start_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+            start_date = LEADERBOARD_EPOCH
         
         # Get or create leaderboard type
         leaderboard_type, _ = LeaderboardType.objects.get_or_create(
@@ -596,7 +595,7 @@ class LeaderboardService:
             try:
                 profile = ProgressProfile.objects.get(user_id=user_id)
                 current_streak = profile.current_streak
-                punctuality_rate = profile.punctuality_rate()
+                punctuality_rate = profile.punctuality_rate
             except ProgressProfile.DoesNotExist:
                 current_streak = 0
                 punctuality_rate = 100
@@ -757,7 +756,7 @@ class MissionService:
         
         # Adjust based on user level and performance
         level_multiplier = 1 + (profile.current_level - 1) * 0.1
-        performance_multiplier = 1 + (profile.punctuality_rate() - 0.5)
+        performance_multiplier = 1 + (profile.punctuality_rate - 0.5)
         
         adjusted_target = int(base_target * level_multiplier * performance_multiplier)
         return max(1, adjusted_target)  # Ensure at least 1

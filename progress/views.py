@@ -1,9 +1,10 @@
 # progress/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from django.db import models
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import NotFound
+from django.db import models
 from django.db.models import Count, Q 
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
@@ -11,9 +12,7 @@ from datetime import datetime, timedelta
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import TaskFilter 
 from .gamification import GamificationEngine
-from rest_framework.pagination import PageNumberPagination
 import random
-from rest_framework.exceptions import NotFound
 from .pagination import CustomPageNumberPagination
 import logging
 from .models import (
@@ -27,7 +26,7 @@ from .serializers import (
     NotificationSerializer, NotificationTypeSerializer, UserNotificationSettingsSerializer,
     TaskSerializer, CategorySerializer, XPLogSerializer, 
     ProgressProfileSerializer, AchievementSerializer, WeeklyReviewSerializer)
-
+from .gamification import LEADERBOARD_EPOCH
 
 logger = logging.getLogger(__name__)
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -48,18 +47,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = TaskFilter
 
+    # ✅ AFTER — Just return the queryset. Django handles empty querysets gracefully.
     def get_queryset(self):
-        """Get tasks for the current user"""
-        # Handle schema generation
         if getattr(self, 'swagger_fake_view', False):
             return Task.objects.none()
-        
-        # Your existing logic here
-        queryset = Task.objects.filter(user=self.request.user)
-        if not queryset.exists():
-            # Instead of raising NotFound, return empty queryset
-            return Task.objects.none()
-        return queryset
+        return Task.objects.filter(user=self.request.user)
 
     @action(detail=True, methods=['patch'])
     def complete(self, request, pk=None):
@@ -96,16 +88,37 @@ class TaskViewSet(viewsets.ModelViewSet):
         completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
 
         # Category breakdown
-        category_stats = {}
-        for category in Category.objects.all():
-            cat_tasks = user_tasks.filter(category=category)
-            cat_completed = cat_tasks.filter(is_completed=True).count()
-            category_stats[category.name] = {
-                'total': cat_tasks.count(),
-                'completed': cat_completed,
-                'completion_rate': (cat_completed / cat_tasks.count() * 100) if cat_tasks.count() > 0 else 0
-            }
+        from django.db.models import Count, Q, Sum
 
+        task_counts = (
+            Task.objects.filter(user=request.user)
+            .values('category_id')
+            .annotate(
+                total_tasks=Count('id'),
+                completed_tasks=Count('id', filter=Q(is_completed=True))
+            )
+        )
+        task_count_map = {row['category_id']: row for row in task_counts}
+
+        # Query 2: XP per category in one shot
+        xp_by_category = (
+            XPLog.objects.filter(user=request.user, action='task_complete')
+            .values('task__category_id')
+            .annotate(total_xp=Sum('xp_earned'))
+        )
+        xp_map = {row['task__category_id']: row['total_xp'] for row in xp_by_category}
+
+        # Query 3: Fetch all categories
+        category_stats = []
+        for category in Category.objects.all():
+            counts = task_count_map.get(category.id, {'total_tasks': 0, 'completed_tasks': 0})
+            category_stats.append({
+                'name': category.name,
+                'color': category.color,
+                'total_tasks': counts['total_tasks'],
+                'completed_tasks': counts['completed_tasks'],
+                'total_xp': xp_map.get(category.id, 0)
+            })
         # Recent activity (last 7 days)
         week_ago = timezone.now() - timedelta(days=7)
         recent_completed = user_tasks.filter(
@@ -128,7 +141,7 @@ class XPViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
-            return XPLog.object()
+            return XPLog.objects.none()  # Correct — returns empty queryset safely
         return XPLog.objects.filter(user=self.request.user)
 
     @action(detail=False, methods=['get'])
@@ -168,23 +181,19 @@ class AchievementViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Show all achievements, including locked ones
         return Achievement.objects.all().order_by('-is_hidden', 'achievement_type', 'threshold')
 
-    @action(detail=False, methods=['get'])
-    def unlocked(self, request):
-        """Get only unlocked achievements"""
-        unlocked_achievements = UserAchievement.objects.filter(
-            user=request.user
-        ).select_related('achievement').order_by('-unlocked_at')
-        
-        return Response([
-            {
-                **AchievementSerializer(ua.achievement, context={'request': request}).data,
-                'unlocked_at': ua.unlocked_at
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # Build a map of achievement_id -> UserAchievement for this user in ONE query
+        if self.request.user.is_authenticated:
+            context['user_achievement_map'] = {
+                ua.achievement_id: ua
+                for ua in UserAchievement.objects.filter(user=self.request.user)
             }
-            for ua in unlocked_achievements
-        ])
+        else:
+            context['user_achievement_map'] = {}
+        return context
 
 class StatsViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -344,15 +353,27 @@ class StatsViewSet(viewsets.ViewSet):
         return Response(response_data)
     
     def _calculate_current_streak_from_data(self, daily_activity):
-        """Calculate what the current streak should be based on activity data"""
+        """
+        Calculate current trailing streak from daily activity data.
+        Consistent with update_streak(): a streak is only alive if the user
+        was active today or yesterday. Walk backwards from most recent day.
+        """
+        activity_list = list(daily_activity)  # daily_activity arrives most-recent-first from the caller
+
         current_streak = 0
-        
-        for day in daily_activity:  # Should be ordered from oldest to newest
+        for i, day in enumerate(activity_list):
+            if i == 0 and not day['has_activity']:
+                # No activity today — streak might still be alive if yesterday had activity
+                continue
+            if i == 1 and not day['has_activity'] and not activity_list[0]['has_activity']:
+                # Neither today nor yesterday — streak is dead
+                break
             if day['has_activity']:
                 current_streak += 1
             else:
-                current_streak = 0  # Reset streak on inactive day
-        
+                # Gap found — streak ends here
+                break
+
         return current_streak
 
     @action(detail=False, methods=['post'])
@@ -442,17 +463,9 @@ class WeeklyReviewViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-            """Get weekly reviews for the current user"""
-            # Handle schema generation
-            if getattr(self, 'swagger_fake_view', False):
-                return WeeklyReview.objects.none()
-            
-            # Your existing logic here
-            queryset = WeeklyReview.objects.filter(user=self.request.user)
-            if not queryset.exists():
-                # Instead of raising NotFound, return empty queryset
-                return WeeklyReview.objects.none()
-            return queryset
+        if getattr(self, 'swagger_fake_view', False):
+            return WeeklyReview.objects.none()
+        return WeeklyReview.objects.filter(user=self.request.user)
     
     def perform_create(self, serializer):
         """Automatically set the user when creating a review"""
@@ -668,8 +681,8 @@ class UserProgressProfileViewSet(viewsets.ReadOnlyModelViewSet):
         Returns only the ProgressProfile for the currently authenticated user.
         This handles both list and retrieve actions for the current user.
         """
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Profile found.")
+        if getattr(self, 'swagger_fake_view', False):
+            return ProgressProfile.objects.none()
         return ProgressProfile.objects.filter(user=self.request.user).order_by('id')
 
     def get_object(self):
@@ -679,7 +692,7 @@ class UserProgressProfileViewSet(viewsets.ReadOnlyModelViewSet):
     
 # ============ LEADERBOARD VIEWS ============
 
-class StandardResultsSetPagination(PageNumberPagination):
+class StandardResultsSetPagination(CustomPageNumberPagination):
     page_size = 20
     page_size_query_param = 'page_size'
     max_page_size = 100
@@ -726,7 +739,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         elif period == 'monthly':
             start_date = end_date - timedelta(days=30)
         else:
-            start_date = timezone.make_aware(datetime(2020, 1, 1))
+            start_date = LEADERBOARD_EPOCH 
         
         # Get leaderboard entries
         queryset = LeaderboardEntry.objects.filter(
@@ -821,8 +834,8 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserFriendshipSerializer
     
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Friends found.")
+        if getattr(self, 'swagger_fake_view', False):
+            return UserFriendship.objects.none()
         return UserFriendship.objects.filter(user=self.request.user).order_by('-created_at')
 
     @action(detail=False, methods=['post'])
@@ -902,9 +915,10 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserMissionSerializer
     
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Missions found Available.")
+        if getattr(self, 'swagger_fake_view', False):
+            return UserMission.objects.none()
         return UserMission.objects.filter(user=self.request.user).order_by('-created_at')
+
     
     @action(detail=False, methods=['get'])
     def available_missions(self, request):
@@ -954,7 +968,6 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['post'])
     def accept_mission(self, request):
-        """Accept a mission"""
         template_id = request.data.get('template_id')
         try:
             template_id = int(template_id)
@@ -962,27 +975,23 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                 raise ValueError
         except (ValueError, TypeError):
             return Response({'error': 'Invalid template_id. Must be a positive integer.'}, status=400)
-        template = get_object_or_404(MissionTemplate, id=template_id, is_active=True)
 
-        # if not template_id:
-        #     return Response({'error': 'Template ID required'}, status=400)
-        
-        template = get_object_or_404(MissionTemplate, id=template_id, is_active=True)
+        template = get_object_or_404(MissionTemplate, id=template_id, is_active=True)  # ← Single call
         user = request.user
-        
+
         # Check if user can accept this mission
         user_level = getattr(user.progress_profile, 'current_level', 0)
         if user_level < template.min_user_level:
             return Response({'error': 'Insufficient level'}, status=400)
-        
+
         if template.max_user_level and user_level > template.max_user_level:
             return Response({'error': 'Level too high for this mission'}, status=400)
-        
+
         # Check active missions limit
         active_count = UserMission.objects.filter(user=user, status='active').count()
         if active_count >= 5:
             return Response({'error': 'Maximum active missions reached'}, status=400)
-        
+
         # Create user mission
         end_date = timezone.now() + timedelta(days=template.duration_days)
         mission = UserMission.objects.create(
@@ -996,8 +1005,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             bonus_multiplier=template.bonus_multiplier,
             category=template.category
         )
-        
-        # Create notification
+
         Notification.objects.create(
             user=user,
             notification_type='mission_accepted',
@@ -1005,50 +1013,47 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             message=f'You accepted the mission "{template.name}". Complete it within {template.duration_days} days!',
             data={'mission_id': mission.id}
         )
-        
+
         serializer = UserMissionSerializer(mission)
         return Response({
             'mission': serializer.data,
             'message': 'Mission accepted successfully'
         })
-    
+
+
     @action(detail=False, methods=['post'])
     def generate_random_missions(self, request):
-        """Generate random missions for user"""
-        
         count_str = request.data.get('count', '3')
         try:
             count = min(int(count_str), 5)
             if count <= 0:
                 raise ValueError
-        except ValueError:
+        except (ValueError, TypeError):
             return Response({'error': 'Invalid count parameter. Must be a positive integer.'}, status=400)
-        
+
         user = request.user
         user_level = getattr(user.progress_profile, 'current_level', 0)
-        count = min(int(request.data.get('count', 3)), 5)
-        
-        # Get suitable templates
+        # ✅ `count` is already safely parsed above — do NOT re-parse here
+
         templates = MissionTemplate.objects.filter(
             is_active=True,
             min_user_level__lte=user_level
         )
-        
+
         if templates.exists():
             templates = templates.filter(
                 Q(max_user_level__isnull=True) | Q(max_user_level__gte=user_level)
             )
-        
-        # Select random templates based on weight
+
         selected_templates = []
         template_list = list(templates)
-        
+
         for _ in range(min(count, len(template_list))):
             weights = [t.weight for t in template_list]
             selected = random.choices(template_list, weights=weights, k=1)[0]
             selected_templates.append(selected)
             template_list.remove(selected)
-        
+
         serializer = MissionTemplateSerializer(selected_templates, many=True)
         return Response({
             'generated_missions': serializer.data,
@@ -1111,8 +1116,8 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = CustomPageNumberPagination
     
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False) or self.request.user.is_anonymous:
-            raise NotFound("No Notificationns found.")
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
         return Notification.objects.filter(
             user=self.request.user,
             is_archived=False
@@ -1301,13 +1306,12 @@ class GameStatsViewSet(viewsets.ViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def _get_user_global_rank(self, user):
-        """Get user's current global rank"""
         try:
             user_entry = LeaderboardEntry.objects.filter(user=user).first()
             if user_entry:
                 return user_entry.rank
         except Exception:
-            logging.exception("Failed to get user global rank")
+            logger.exception("Failed to get user global rank")  # ✅ Uses module logger
         return None
 
     @action(detail=False, methods=['post'])

@@ -24,3 +24,11 @@ sqlparse==0.5.3
 typing_extensions==4.14.0
 tzdata==2025.2
 urllib3==2.4.0
+django-cors-headers==4.9.0
+django-csp==4.0
+drf-yasg==1.21.15
+inflection==0.5.1
+packaging==26.2
+pytz==2026.2
+PyYAML==6.0.3
+uritemplate==4.2.0
