@@ -174,10 +174,14 @@ class UserActivity(models.Model):
         max_length=50,
         choices=[
             ('login', 'Login'),
+            ('logout', 'Logout'),
+            ('registration', 'Registration'),
             ('profile_update', 'Profile Update'),
             ('profile_view', 'Profile Viewed'),
             ('password_change', 'Password Change'),
+            ('password_reset', 'Password Reset'),
             ('email_change', 'Email Change'),
+            ('avatar_update', 'Avatar Update'),
         ]
     )
     timestamp = models.DateTimeField(auto_now_add=True)

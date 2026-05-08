@@ -106,7 +106,7 @@ class UserLogoutView(APIView):
     
     def post(self, request):
         try:
-            refresh_token = request.data.get('refresh_token')
+            refresh_token = request.data.get('refresh') or request.data.get('refresh_token')
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
@@ -267,6 +267,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
     
     def send_reset_email(self, user, token):
         """Send password reset email"""
+        # reset_url = f"{settings.FRONTEND_URL}/auth/reset-password/{token}/"
         reset_url = f"http://127.0.0.1:8000/api/auth/password/reset/confirm/{token}/"
         subject = 'Password Reset Request'
         message = f"""
