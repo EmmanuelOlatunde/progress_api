@@ -199,7 +199,10 @@ class UserBasicSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'display_name', 'avatar_url']
     
     def get_avatar_url(self, obj):
-        return obj.get_avatar_url()
+        request = self.context.get('request')
+        if obj.avatar:
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        return None  # ✅ return None instead of broken static path — frontend falls back to AvatarFallback
     
     def get_display_name(self, obj):
         return obj.display_name

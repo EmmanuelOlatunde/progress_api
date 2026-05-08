@@ -114,7 +114,10 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.full_name
     
     def get_avatar_url(self, obj):
-        return obj.get_avatar_url()
+        request = self.context.get('request')
+        if obj.avatar:
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        return None  # ✅ return None instead of broken static path — frontend falls back to AvatarFallback
 
 class PublicUserSerializer(serializers.ModelSerializer):
     """Serializer for public user profiles (limited fields)"""
@@ -133,7 +136,10 @@ class PublicUserSerializer(serializers.ModelSerializer):
         return obj.display_name
     
     def get_avatar_url(self, obj):
-        return obj.get_avatar_url()
+        request = self.context.get('request')
+        if obj.avatar:
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        return None  # ✅ return None instead of broken static path — frontend falls back to AvatarFallback
     
     def to_representation(self, instance):
         """Only return data if profile is public"""
