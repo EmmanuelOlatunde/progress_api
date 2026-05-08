@@ -766,34 +766,51 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'total_participants': queryset.values('user').distinct().count(),
             'period': period
         })
-    
+
+
+    # ── friends_leaderboard — fix bidirectional friendship query ──────────────────
     @action(detail=False, methods=['get'])
     def friends_leaderboard(self, request):
-        """Get friends-only leaderboard"""
-        # Get user's friends
-        friends = UserFriendship.objects.filter(
-            user=request.user,
-            status='accepted'
-        ).values_list('friend_id', flat=True)
-        
-        # Include current user
-        user_ids = list(friends) + [request.user.id]
-        
-        # Get recent entries for friends
+        from django.db.models import Q
+        # ✅ Both directions — you sent OR you received
+        friend_ids = UserFriendship.objects.filter(
+            Q(user=request.user, status='accepted') |
+            Q(friend=request.user, status='accepted')
+        ).values_list(
+            # Get the OTHER person's id, not always 'friend_id'
+            'friend_id', 'user_id'
+        )
+
+        # Flatten to a set of IDs excluding self
+        all_friend_ids = set()
+        for friend_id, user_id in friend_ids:
+            all_friend_ids.add(friend_id)
+            all_friend_ids.add(user_id)
+        all_friend_ids.discard(request.user.id)  # remove self
+
+        user_ids = list(all_friend_ids) + [request.user.id]
+
         end_date = timezone.now()
-        start_date = end_date - timedelta(days=30)  # Last 30 days
-        
-        entries = LeaderboardEntry.objects.filter(
-            user_id__in=user_ids,
-            period_start__gte=start_date
-        ).select_related('user').order_by('-score')
-        
+        start_date = end_date - timedelta(days=30)
+
+        # ✅ Deduplicate — one entry per user, take highest score
+        entries = (
+            LeaderboardEntry.objects
+            .filter(user_id__in=user_ids, period_start__gte=start_date)
+            .select_related('user', 'leaderboard_type')
+            .order_by('user_id', '-score')  # best score per user first
+            .distinct('user_id')            # one row per user (PostgreSQL)
+        )
+
+        # Re-order by score for display
+        entries = sorted(entries, key=lambda e: e.score, reverse=True)
+
         serializer = LeaderboardEntrySerializer(entries, many=True)
         return Response({
             'entries': serializer.data,
-            'friends_count': len(friends)
+            'friends_count': len(all_friend_ids)
         })
-    
+
     @action(detail=False, methods=['get'])
     def category_rankings(self, request):
         """Get leaderboard rankings by category"""
@@ -836,7 +853,9 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return UserFriendship.objects.none()
-        return UserFriendship.objects.filter(user=self.request.user).order_by('-created_at')
+        return UserFriendship.objects.filter(
+            Q(user=self.request.user) | Q(friend=self.request.user)
+        ).select_related('user', 'friend').order_by('-created_at')
 
     @action(detail=False, methods=['post'])
     def send_request(self, request):
@@ -885,18 +904,20 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=True, methods=['post'])
     def accept_request(self, request, pk=None):
-        """Accept friend request"""
         friendship = get_object_or_404(UserFriendship, id=pk, friend=request.user, status='pending')
         friendship.status = 'accepted'
         friendship.save()
-        
-        # Create reverse friendship
-        UserFriendship.objects.get_or_create(
-            user=request.user,
-            friend=friendship.user,
-            defaults={'status': 'accepted'}
+
+        # ✅ Remove the get_or_create reverse row — it causes duplicates
+        # Notification to the sender
+        Notification.objects.create(
+            user=friendship.user,
+            notification_type='friend_request_accepted',
+            title='Friend Request Accepted',
+            message=f'{request.user.username} accepted your friend request!',
+            data={'friendship_id': friendship.id}
         )
-        
+
         return Response({'message': 'Friend request accepted'})
     
     @action(detail=True, methods=['post'])

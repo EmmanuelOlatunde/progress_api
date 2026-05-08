@@ -250,10 +250,17 @@ class UserFriendshipSerializer(serializers.ModelSerializer):
     """User friendship serializer"""
     friend = UserBasicSerializer(read_only=True)
     friend_username = serializers.CharField(write_only=True, required=False)
-    
+    sender = UserBasicSerializer(source='user', read_only=True)
+    is_sender = serializers.SerializerMethodField()  # ✅ add this
+
+    def get_is_sender(self, obj):
+        request = self.context.get('request')
+        return bool(request and obj.user == request.user)  # obj.user is the sender
+
     class Meta:
         model = UserFriendship
-        fields = ['id', 'friend', 'friend_username', 'status', 'created_at']
+        fields = ['id', 'sender' ,'friend', 'friend_username', 'status', 'is_sender', 'created_at']  # ✅ add is_sender
+    
     
     def validate_friend_username(self, value):
         """Validate that the friend username exists"""

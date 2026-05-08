@@ -522,12 +522,10 @@ class GamificationEngine:
 class LeaderboardService:
     """Service for managing leaderboards and rankings"""
     
-
     @staticmethod
     def update_rankings(period: str = 'weekly') -> None:
-        """Update leaderboard rankings for given period"""
         end_date = timezone.now()
-        
+
         if period == 'daily':
             start_date = end_date - timedelta(days=1)
         elif period == 'weekly':
@@ -536,34 +534,36 @@ class LeaderboardService:
             start_date = end_date - timedelta(days=30)
         else:
             start_date = LEADERBOARD_EPOCH
-        
-        # Get or create leaderboard type
+
         leaderboard_type, _ = LeaderboardType.objects.get_or_create(
-            name=f'{period.title()} Global Leaderboard',
             leaderboard_type='global' if period == 'all_time' else period,
-            defaults={'reset_frequency': period}
+            defaults={
+                'name': f'{period.title()} Global Leaderboard',
+                'reset_frequency': period
+            }
         )
-        
-        # Calculate user scores for the period
+
         user_scores = LeaderboardService._calculate_user_scores(start_date, end_date)
-        
-        # Update or create leaderboard entries
+
         for rank, (user_id, score_data) in enumerate(user_scores.items(), 1):
-            entry, created = LeaderboardEntry.objects.update_or_create(
+            # ✅ Only lookup by leaderboard_type + user — no period_start
+            # This means one row per user per leaderboard type, updated in place
+            LeaderboardEntry.objects.update_or_create(
                 leaderboard_type=leaderboard_type,
                 user_id=user_id,
-                period_start=start_date,
-                period_end=end_date, 
                 defaults={
                     'score': score_data['total_score'],
                     'rank': rank,
                     'tasks_completed': score_data['tasks_completed'],
                     'total_xp': score_data['total_xp'],
                     'streak_count': score_data['current_streak'],
-                    'punctuality_rate': score_data['punctuality_rate']
+                    'punctuality_rate': score_data['punctuality_rate'],
+                    'period_start': start_date,
+                    'period_end': end_date,
                 }
             )
-    
+
+
     @staticmethod
     def _calculate_user_scores(start_date: datetime, end_date: datetime) -> Dict:
         """Calculate user scores for leaderboard period"""

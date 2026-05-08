@@ -274,3 +274,4 @@ class UserStatsSerializer(serializers.Serializer):
             'public_profiles': public_profiles,
             'recent_registrations': recent_registrations,
         }
+    
