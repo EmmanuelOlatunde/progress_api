@@ -930,7 +930,7 @@ class FriendshipViewSet(viewsets.ReadOnlyModelViewSet):
 
 # ============ MISSION VIEWS ============
 
-class MissionViewSet(viewsets.ReadOnlyModelViewSet):
+class MissionViewSet(viewsets.ModelViewSet):
     """Mission management"""
     permission_classes = [IsAuthenticated]
     serializer_class = UserMissionSerializer
@@ -1018,6 +1018,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         mission = UserMission.objects.create(
             user=user,
             template=template,
+            mission_type=template.mission_type,  # Store mission_type for progress updates
             title=template.name,
             description=template.description,
             target_value=template.target_value,
@@ -1081,6 +1082,97 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             'count': len(selected_templates)
         })
     
+
+
+    @action(detail=False, methods=['post'])
+    def generate_ai_missions(self, request):
+        """
+        Generate AI-powered personalized missions.
+        Returns a PREVIEW — nothing is saved to the database.
+        User accepts individually via accept_ai_mission/.
+        Rate limited: once per hour per user.
+        """
+        from .ai_service import AIMissionService
+
+        # Check mission limit before spending the API call
+        active_count = UserMission.objects.filter(
+            user=request.user, status='active'
+        ).count()
+        if active_count >= 5:
+            return Response(
+                {'error': 'You have 5 active missions. Complete or abandon some first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AIMissionService(request.user)
+
+        # Rate limit check
+        rate_limit_error = service.check_rate_limit()
+        if rate_limit_error:
+            return Response(
+                {'error': rate_limit_error},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        result = service.generate_preview()
+
+        if result['error'] and not result['missions']:
+            return Response(
+                {'error': result['error']},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response({
+            'missions': result['missions'],
+            'count': len(result['missions']),
+            'error': result['error'],
+        })
+
+
+    @action(detail=False, methods=['post'])
+    def accept_ai_mission(self, request):
+        """
+        Save one AI mission the user accepted from the preview.
+        Expects: { "mission": { ...AIMissionPreview fields... } }
+        Re-validates server-side before saving.
+        """
+        from .ai_service import AIMissionService
+
+        mission_data = request.data.get('mission')
+        if not mission_data or not isinstance(mission_data, dict):
+            return Response(
+                {'error': 'mission field is required and must be an object.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AIMissionService(request.user)
+
+        try:
+            mission = service.save_mission(mission_data)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        days_left = max(1, (mission.end_date - timezone.now()).days + 1)
+
+        Notification.objects.create(
+            user=request.user,
+            notification_type='mission_accepted',
+            title='AI Mission Accepted!',
+            message=f'You accepted "{mission.title}". Complete it within {days_left} days!',
+            data={'mission_id': mission.id, 'ai_generated': True},
+        )
+
+        return Response({
+            'mission': UserMissionSerializer(mission).data,
+            'message': 'Mission saved successfully.',
+        })
+
+
+
+
     @action(detail=True, methods=['post'])
     def abandon_mission(self, request, pk=None):
         """Abandon an active mission"""
@@ -1105,26 +1197,36 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             })
         
         return Response({'mission_progress': progress_data})
-    
-    @action(detail=False, methods=['post'])
-    def update_mission_progress(self, request):
-        """Check and update mission progress based on recent tasks"""
+    @action(detail=True, methods=['post'])
+    def update_progress(self, request, pk=None):
+        """Update progress for a specific mission"""
         from .gamification import MissionService
         
-        user = request.user
+        mission = self.get_object()
         
-        # Get mission_type from request or default
-        mission_type = request.data.get('mission_type', 'default')  # you can decide a default
+        # Get progress value from request (default 1)
+        progress_value = int(request.data.get('progress_value', 1))
         
-        updated_missions = MissionService.update_mission_progress(
-            user_id=user.id,
-            mission_type=mission_type,
-            progress_value=1
+        # Update only this specific mission
+        mission.current_progress = min(
+            mission.current_progress + progress_value,
+            mission.target_value
         )
         
+        # Check if mission is now completed
+        if mission.current_progress >= mission.target_value:
+            mission.status = 'completed'
+            mission.is_completed = True
+            mission.completed_at = timezone.now()
+            
+            # Award XP
+            MissionService._award_mission_rewards(mission.user.id, mission)
+        
+        mission.save()
+        
         return Response({
-            'updated_missions': len(updated_missions),
-            'missions': UserMissionSerializer(updated_missions, many=True).data
+            'mission': UserMissionSerializer(mission).data,
+            'message': f'Mission progress updated: {mission.current_progress}/{mission.target_value}'
         })
 
 

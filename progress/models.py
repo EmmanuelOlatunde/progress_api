@@ -396,8 +396,28 @@ class UserMission(models.Model):
         ('abandoned', 'Abandoned'),
     ]
     
+    MISSION_TYPES = [
+        ('task_count', 'Complete X Tasks'),
+        ('category_focus', 'Complete X Tasks in Category'),
+        ('streak', 'Maintain X Day Streak'),
+        ('timing', 'Complete X Tasks Early/On Time'),
+        ('difficulty', 'Complete X Hard/Expert Tasks'),
+        ('xp_target', 'Earn X XP'),
+        ('daily_goal', 'Complete Daily Goal'),
+        ('weekly_challenge', 'Weekly Challenge'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='missions')
-    template = models.ForeignKey(MissionTemplate, on_delete=models.CASCADE)
+    # template = models.ForeignKey(MissionTemplate, on_delete=models.CASCADE)
+    template = models.ForeignKey(
+    MissionTemplate,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True
+)
+    
+    # Mission type — stored directly for AI missions that have no template
+    mission_type = models.CharField(max_length=20, choices=MISSION_TYPES, default='task_count', null=True, blank=True)
     
     # Mission details
     title = models.CharField(max_length=200)

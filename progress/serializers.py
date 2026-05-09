@@ -321,7 +321,11 @@ class UserMissionSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     template = MissionTemplateSerializer(read_only=True)
     template_id = serializers.PrimaryKeyRelatedField(
-        queryset=MissionTemplate.objects.all(), write_only=True, source='template'
+        queryset=MissionTemplate.objects.all(),
+        write_only=True,
+        source='template',
+        required=False,
+        allow_null=True
     )
     progress_percentage = serializers.ReadOnlyField()
     time_remaining = serializers.ReadOnlyField()
@@ -329,8 +333,11 @@ class UserMissionSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     days_remaining = serializers.SerializerMethodField()
     difficulty_color = serializers.SerializerMethodField()
-    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
-
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = UserMission

@@ -737,6 +737,7 @@ class MissionService:
             mission = UserMission.objects.create(
             user_id=user_id,
             template=template,
+            mission_type=template.mission_type,  # Store mission_type for progress updates
             title=template.name,
             description=template.description,
             target_value=MissionService._calculate_target_value(template, profile),
@@ -764,11 +765,15 @@ class MissionService:
     @staticmethod
     def update_mission_progress(user_id: int, mission_type: str, progress_value: int = 1) -> List[UserMission]:
         """Update progress for user's active missions"""
+        from django.db.models import Q
+        
+        # Query missions that match mission_type — either directly or via template
         active_missions = UserMission.objects.filter(
             user_id=user_id,
-            status='active',
-            template__mission_type=mission_type
-
+            status='active'
+        ).filter(
+            Q(mission_type=mission_type) |  # AI missions with direct mission_type
+            Q(template__mission_type=mission_type)  # Template-based missions
         )
         
         completed_missions = []
@@ -800,7 +805,8 @@ class MissionService:
             user_id=user_id,
             action='mission_complete',
             xp_earned=mission.xp_reward,
-            description=f'Mission: {mission.template.name}'
+            description=f'Mission: {mission.template.name if mission.template else mission.title}'
+
         )
         
         # Update user profile
